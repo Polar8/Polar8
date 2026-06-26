@@ -1,0 +1,490 @@
+### Nightboxes System ###
+
+public class NightBoxListener implements Listener {
+	
+	private final CosmeticManager manager;
+	
+	private RankManager rankManager;
+	
+	public Map<UUID, Location> previousLocations = new HashMap<>();
+	
+	public NightBoxListener(CosmeticManager manager, RankManager rankManager) {
+	this.manager = manager;	
+	this.rankManager= rankManager;
+	}
+	
+	public final Map<Location, UUID> activeCrateSpots = new HashMap<>();
+
+	private final List<Location> cratePlatforms = Arrays.asList(new Location(Bukkit.getWorld("world"), 268, 123, -337));
+	
+	public String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Nightbox] ";
+	
+	public void startCrateSequence(Player player) {
+	    for (Location platform: cratePlatforms) {
+	        if (!activeCrateSpots.containsKey(platform)) {
+	            activeCrateSpots.put(platform, player.getUniqueId());
+	            Location teleportLoc = platform.clone().add(0, 1, 0);
+	            player.teleport(teleportLoc);
+	            player.playSound(teleportLoc, Sound.NOTE_PLING, 5.0F, 3.0F);
+	            ItemStack key = new ItemStack(Material.STICK);
+	            ItemMeta meta = key.getItemMeta();
+	            meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "Nightbox Key");
+	            meta.setLore(Arrays.asList(ChatColor.GRAY + ""));
+	            key.setItemMeta(meta);
+	            player.getInventory().setItem(10, key);
+	            Location loc = player.getLocation();
+	            double radius = 1.0;
+	            for (int i = 0; i < 360; i += 5) {
+	                double angle = Math.toRadians(i);
+	                double x = radius * Math.cos(angle);
+	                double z = radius * Math.sin(angle);
+	                Location flameLoc = loc.clone().add(x, 0, z);
+	                flameLoc.getWorld().playEffect(flameLoc, Effect.CRIT, 0);
+	            }
+	            Bukkit.broadcastMessage(prefix + player.getDisplayName() + ChatColor.GRAY + " is opening a nightbox!");
+	            spawnCrateAt(player, platform.clone().add(2, 0, 0));
+	            spawnCrateAt(player, platform.clone().add(-2, 0, 0));
+	            return;
+	        }
+	    }
+	    ActionBar actionBar = new ActionBar(prefix + ChatColor.RED + "Areas filled up! Here's your refund, try again later!");
+	    actionBar.sendToPlayer(player);
+	    player.playSound(player.getLocation(), Sound.NOTE_BASS, 2, 2);
+	    Coins.addCoins(player, 100);
+	    int coins = Coins.getCoins(player);
+      int shards = EvoShards.getShards(player);
+      String rankName = this.rankManager.getRank(player).getPrefix();
+      String serverName = "Lobby";
+      this.rankManager.updateSidebar(player, coins, shards, rankName, serverName);
+	    restoreLobbyItems(player);
+	}
+	
+	private void spawnCrateAt(Player player, Location target) {
+	    target.getBlock().setType(Material.ENDER_CHEST);
+	    ArmorStand stand = (ArmorStand) target.getWorld().spawn(target.clone().add(0.5, 1, 0.5), ArmorStand.class);
+	    stand.setVisible(false);
+	    stand.setGravity(false);
+	    stand.setCustomName(ChatColor.LIGHT_PURPLE + "Cosmetic Crate");
+	    stand.setCustomNameVisible(true);
+	    stand.setMarker(true);
+	    spawnFirework(target.clone().add(0.5, 1, 0.5));
+	    double radius = 1.0;
+	    for (int i = 0; i < 360; i += 10) {
+	        double angle = Math.toRadians(i);
+	        double x = radius * Math.cos(angle);
+	        double z = radius * Math.sin(angle);
+	        Location flameLoc = target.clone().add(x, 1, z);
+	        flameLoc.getWorld().playEffect(flameLoc, Effect.MOBSPAWNER_FLAMES, 0);
+	    }
+	}
+	
+	private void spawnFirework(Location loc) {
+	    Firework fw = (Firework) loc.getWorld().spawn(loc, Firework.class);
+	    FireworkMeta fwm = fw.getFireworkMeta();
+	    fwm.addEffect(FireworkEffect.builder().with(FireworkEffect.Type.BURST).withColor(Color.PURPLE).withFade(Color.BLUE).flicker(true).trail(true).build());
+	    fwm.setPower(1);
+	    fw.setFireworkMeta(fwm);
+	}
+	@SuppressWarnings("deprecation")
+		@EventHandler
+		public void onPlayerOpenCrate(PlayerInteractEvent e) {
+		if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+		Block clicked = e.getClickedBlock();
+		if (clicked == null || clicked.getType() != Material.ENDER_CHEST) return;
+		Location crateLoc = clicked.getLocation();
+	    Player player = e.getPlayer(); 
+	    boolean hasKey = false;
+	    ItemStack[] contents = player.getInventory().getContents();
+	    for (int i = 0; i < contents.length; i++) {
+	        ItemStack item = contents[i];
+	        if (item == null || item.getType() != Material.STICK) continue;
+	        if (!item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) continue;
+	        if (ChatColor.stripColor(item.getItemMeta().getDisplayName()).equalsIgnoreCase("Nightbox Key")) {
+	            hasKey = true;
+	            break;
+	        }
+	    }
+
+	    if (!hasKey) {
+	    	e.setCancelled(true);
+	        player.sendMessage(prefix + ChatColor.RED + "You need a Nightbox Key to open this crate!");
+	        return;
+	    }  
+
+
+	    e.setCancelled(true);
+	    spawnFirework(crateLoc.clone().add(0.5, 1, 0.5));
+	    player.playEffect(crateLoc, Effect.ENDER_SIGNAL, 3);
+	    	for (Entity entity : crateLoc.getWorld().getNearbyEntities(crateLoc.clone(), 6, 6, 6)) {
+	    	    if (entity instanceof ArmorStand) {
+	    	        ArmorStand stand = (ArmorStand) entity;
+	    	        if (stand.getCustomName() != null && ChatColor.stripColor(stand.getCustomName()).equalsIgnoreCase("Cosmetic Crate")) {
+	    	            stand.remove();
+	    	        }
+	    	    }
+	    	}
+	    	
+	    	for (Entity entity : crateLoc.getWorld().getNearbyEntities(crateLoc.clone().add(0.5, 5, 0.5), 10, 10, 10)) {
+	    	    if (entity instanceof FallingBlock) {
+	    	        FallingBlock fb = (FallingBlock) entity;
+	    	        if (fb.getMaterial() == Material.ENDER_CHEST) {
+	    	            fb.remove();
+	    	        }
+	    	    }
+	    	}
+	    
+	    	int platformY = crateLoc.getBlockY();
+	    	for (int x = -10; x <= 10; x++) {
+	    	    for (int z = -10; z <= 10; z++) {
+	    	        Location check = new Location(crateLoc.getWorld(), crateLoc.getX() + x, platformY, crateLoc.getZ() + z);
+	    	        if (check.getBlock().getType() == Material.ENDER_CHEST) {
+	    	            check.getBlock().setType(Material.AIR);
+	    	            player.playEffect(check, Effect.SMOKE, 3);
+	    	            player.playEffect(player.getLocation(), Effect.MOBSPAWNER_FLAMES, 5);
+	    	        }
+	    	    }
+	    	}
+	    	Random random = new Random();
+	    	double roll = random.nextDouble() * 100;
+	    	if (roll < 10) {
+	    	    CosList[] allCosmetics = CosList.values();
+	    	    int limit = Math.min(30, allCosmetics.length);
+	    	    CosList chosen = allCosmetics[random.nextInt(limit)];
+	    	    Set<CosList> ownedCosmetics = manager.getCosmetics(player);
+	    	    if (ownedCosmetics == null) {
+	    	        ownedCosmetics = EnumSet.noneOf(CosList.class);
+	    	    }
+	    	    if (ownedCosmetics.contains(chosen)) {
+	    	        ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "Duplicate! Here's a shard and coins instead.");
+	    	        actionBar.sendToPlayer(player);
+	    	        Coins.addCoins(player, 30);
+	    	        EvoShards.addShards(player, 1);
+	    	        int coins = Coins.getCoins(player);
+	    	        int shards = EvoShards.getShards(player);
+	    	        String rankName = this.rankManager.getRank(player).getPrefix();
+	    	        String serverName = "Lobby";
+	    	        this.rankManager.updateSidebar(player, coins, shards, rankName, serverName);
+	    	        player.playSound(player.getLocation(), Sound.GHAST_SCREAM2, 2f, 2f);
+	    	        teleportBackLater(player, previousLocations);
+	    	        releaseCrateSpots(cratePlatforms);
+	    	        Location loc = player.getLocation();
+	    	        double radius = 1.0;
+	    	        for (int i = 0; i < 360; i += 5) {
+	    	            double angle = Math.toRadians(i);
+	    	            double x = radius * Math.cos(angle);
+	    	            double z = radius * Math.sin(angle);
+	    	            Location flameLoc = loc.clone().add(x, 0, z);
+	    	            flameLoc.getWorld().playEffect(flameLoc, Effect.CRIT, 0);
+	    	        }
+	    	    } else {
+	    	        manager.addCosmetic(player, chosen, () -> {
+	    	            ActionBar actionBar = new ActionBar(prefix + ChatColor.GREEN + "You unlocked: " + ChatColor.BOLD + chosen.getDisplayName());
+	    	            actionBar.sendToPlayer(player);
+	    	            player.playSound(player.getLocation(), Sound.ENDERMAN_SCREAM, 1f, 1f);
+	    	            for (Player allp: Bukkit.getOnlinePlayers()) {
+	    	                allp.sendMessage(prefix + ChatColor.GRAY + ChatColor.BOLD + player.getName() + ChatColor.GRAY + " has unlocked " + chosen.getDisplayName());
+	    	                allp.playSound(allp.getLocation(), Sound.ORB_PICKUP, 3F, 3F);
+	    	            } 
+	    	        });
+	    	        teleportBackLater(player, previousLocations);
+	    	        releaseCrateSpots(cratePlatforms);
+	    	        Location loc = player.getLocation();
+	    	        double radius = 1.0;
+	    	        for (int i = 0; i < 360; i += 5) {
+	    	            double angle = Math.toRadians(i);
+	    	            double x = radius * Math.cos(angle);
+	    	            double z = radius * Math.sin(angle);
+	    	            Location flameLoc = loc.clone().add(x, 0, z);
+	    	            flameLoc.getWorld().playEffect(flameLoc, Effect.CRIT, 0);
+	    	            restoreLobbyItems(player);
+	    	        }
+	    	    }
+	    } else if (roll < 20) {
+	        ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "You got an evo shard!");
+	        actionBar.sendToPlayer(player);
+	        EvoShards.addShards(player, 1);
+	        int coins = Coins.getCoins(player);
+	        int shards = EvoShards.getShards(player);
+	        String rankName = this.rankManager.getRank(player).getPrefix();
+	        String serverName = "Lobby";
+	        this.rankManager.updateSidebar(player, coins, shards, rankName, serverName);
+	        player.playSound(player.getLocation(), Sound.GHAST_SCREAM2, 2f, 2f);
+	        teleportBackLater(player, previousLocations);
+	        releaseCrateSpots(cratePlatforms);
+	        Location loc = player.getLocation();
+	        double radius = 1.0;
+	        for (int i = 0; i < 360; i += 5) {
+	            double angle = Math.toRadians(i);
+	            double x = radius * Math.cos(angle);
+	            double z = radius * Math.sin(angle);
+	            Location flameLoc = loc.clone().add(x, 0, z);
+	            flameLoc.getWorld().playEffect(flameLoc, Effect.CRIT, 0);
+	        }
+	    } else if (roll < 60) {
+	        ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "You got 20 coins!");
+	        actionBar.sendToPlayer(player);
+	        Coins.addCoins(player, 20);
+	        int coins = Coins.getCoins(player);
+	        int shards = EvoShards.getShards(player);
+	        String rankName = this.rankManager.getRank(player).getPrefix();
+	        String serverName = "Lobby";
+	        this.rankManager.updateSidebar(player, coins, shards, rankName, serverName);
+	        player.playSound(player.getLocation(), Sound.GHAST_SCREAM, 1f, 1f);
+	        teleportBackLater(player, previousLocations);
+	        releaseCrateSpots(cratePlatforms);
+	        Location loc = player.getLocation();
+	        double radius = 1.0;
+	        for (int i = 0; i < 360; i += 5) {
+	            double angle = Math.toRadians(i);
+	            double x = radius * Math.cos(angle);
+	            double z = radius * Math.sin(angle);
+	            Location flameLoc = loc.clone().add(x, 0, z);
+	            flameLoc.getWorld().playEffect(flameLoc, Effect.CRIT, 0);
+	        }
+	    } else {
+	        ActionBar actionBar = new ActionBar(prefix + ChatColor.GREEN + "Nothing happened... What!");
+	        actionBar.sendToPlayer(player);
+	        player.playSound(player.getLocation(), Sound.VILLAGER_IDLE, 2.0F, 0.5F);
+	        teleportBackLater(player, previousLocations);
+	        releaseCrateSpots(cratePlatforms);
+	        Location loc = player.getLocation();
+	        double radius = 1.0;
+	        for (int i = 0; i < 360; i += 5) {
+	            double angle = Math.toRadians(i);
+	            double x = radius * Math.cos(angle);
+	            double z = radius * Math.sin(angle);
+	            Location flameLoc = loc.clone().add(x, 0, z);
+	            flameLoc.getWorld().playEffect(flameLoc, Effect.CRIT, 0);
+	        }
+            }
+	    }
+	
+	@EventHandler
+	public void onPlayerMove(PlayerMoveEvent event) {
+	    Player movingPlayer = event.getPlayer();
+	    if (movingPlayer.isInsideVehicle()) {
+	        Entity vehicle = movingPlayer.getVehicle();
+	        for (Location crateLoc: activeCrateSpots.keySet()) {
+	            if (vehicle.getLocation().distance(crateLoc) <= 6) {
+	                Vector knock = vehicle.getLocation().toVector().subtract(crateLoc.toVector()).normalize().multiply(5);
+	                knock.setY(2);
+	                vehicle.setVelocity(knock);
+	                ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "You're too close, don't bother the opener!");
+	                actionBar.sendToPlayer(movingPlayer);
+	                movingPlayer.playSound(movingPlayer.getLocation(), Sound.CAT_MEOW, 2, 3);
+	                return;
+	            }
+	        }
+	    }
+	    for (Player potentialOpener: Bukkit.getOnlinePlayers()) {
+	        if (potentialOpener.equals(movingPlayer)) continue;
+
+	        boolean hasKey = false;
+	        for (ItemStack item : potentialOpener.getInventory().getContents()) {
+	            if (item != null && item.getType() == Material.STICK &&
+	                item.hasItemMeta() && item.getItemMeta().hasDisplayName() &&
+	                ChatColor.stripColor(item.getItemMeta().getDisplayName()).equalsIgnoreCase("Nightbox Key")) {
+	                hasKey = true;
+	                break;
+	            }
+	        }
+	        if (!hasKey) continue;
+	        for (Location crateLoc: activeCrateSpots.keySet()) {
+	            if (potentialOpener.getLocation().distance(crateLoc) <= 2 &&
+	                movingPlayer.getLocation().distance(crateLoc) <= 6) {
+	                Vector knock = movingPlayer.getLocation().toVector().subtract(crateLoc.toVector()).normalize().multiply(5);
+	                knock.setY(2);
+	                movingPlayer.setVelocity(knock);
+	                ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "You're too close, don't bother the opener!");
+	                actionBar.sendToPlayer(movingPlayer);
+	                movingPlayer.playSound(movingPlayer.getLocation(), Sound.CAT_MEOW, 2, 3);
+	                return;
+	            }
+	        }
+	    }
+	}
+
+	
+	private void teleportBackLater(Player player, Map<UUID, Location> previousLocations) {
+	    Location back = previousLocations.remove(player.getUniqueId());
+	    if (back != null) {
+	        Bukkit.getScheduler().runTaskLater(Main.getInstance(), () -> {
+	            player.teleport(back);
+	            for (ItemStack item : player.getInventory().getContents()) {
+	                if (item != null && item.getType() == Material.STICK &&
+	                    item.hasItemMeta() && item.getItemMeta().hasDisplayName() &&
+	                    ChatColor.stripColor(item.getItemMeta().getDisplayName()).equalsIgnoreCase("Nightbox Key")) {
+	                    player.getInventory().remove(item);
+	                    restoreLobbyItems(player);
+	                    break;
+	                }
+	            }
+
+	        }, 100L);
+	    }
+	}
+	
+	@EventHandler
+	public void onPlayerMove1(PlayerMoveEvent event) {
+	    Player player = event.getPlayer();
+	    UUID playerId = player.getUniqueId();
+
+	    if (activeCrateSpots.containsValue(playerId)) {
+	        Location platform = activeCrateSpots.entrySet().stream()
+	                .filter(e -> e.getValue().equals(playerId))
+	                .map(Map.Entry::getKey)
+	                .findFirst()
+	                .orElse(null);
+
+	        if (platform != null) {
+	            Location to = event.getTo();
+
+	            double distance = to.distance(platform);
+	            if (distance > 3.5 && distance < 6.0) {
+	                Vector push = platform.toVector().subtract(to.toVector()).normalize().multiply(0.5);
+	                push.setY(0.1);
+	                player.setVelocity(push);
+
+	                ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "You're wandering off... stay on the platform!");
+	                actionBar.sendToPlayer(player);
+	            } else if (distance >= 6.0) {
+	                player.teleport(platform.clone().add(0, 1, 0));
+	                ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "Open your nightbox before leaving!");
+	                actionBar.sendToPlayer(player);
+	            }
+	        }
+	    }
+	}
+	
+	@EventHandler
+	public void onCommandPreprocess(PlayerCommandPreprocessEvent event) {
+	    Player player = event.getPlayer();
+	    if (activeCrateSpots.containsValue(player.getUniqueId())) {
+	        event.setCancelled(true);
+	        ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "Open your nightbox before using commands!");
+            actionBar.sendToPlayer(player);
+	    }
+	}
+	
+	@EventHandler
+	public void onPlayerQuit(PlayerQuitEvent e) {
+	    Player player = e.getPlayer();
+	    UUID id = player.getUniqueId();
+	    for (Iterator<Map.Entry<Location, UUID>> it = activeCrateSpots.entrySet().iterator(); it.hasNext();) {
+	        Map.Entry<Location, UUID> entry = it.next();
+	        if (entry.getValue().equals(id)) {
+	            Location platform = entry.getKey();
+	            it.remove();
+	            Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+	                Location[] crates = {
+	                    platform.clone().add(2, 0, 0),
+	                    platform.clone().add(-2, 0, 0)
+	                };
+	                for (Location crateLoc: crates) {
+	                    crateLoc.getBlock().setType(Material.AIR);
+	                }
+
+	                platform.getWorld()
+	                    .getNearbyEntities(platform.clone().add(0, 1, 0), 5, 5, 5)
+	                    .stream()
+	                    .filter(ent -> (ent instanceof ArmorStand && ChatColor.stripColor(((ArmorStand) ent).getCustomName()).equals("Cosmetic Crate"))
+	                                || (ent instanceof FallingBlock && ((FallingBlock) ent).getMaterial() == Material.ENDER_CHEST))
+	                    .forEach(Entity::remove);
+	            });
+	            Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(), () -> {
+	                Main.getInstance();
+					try (PreparedStatement ps = Main.getConnection().prepareStatement(
+	                        "REPLACE INTO pending_refunds (player_uuid, message, amount, timestamp) VALUES (?, ?, ?, ?)")) {
+	                    ps.setString(1, id.toString());
+	                    ps.setString(2, "You were refunded 100 coins for quitting during a Nightbox!");
+	                    ps.setInt(3, 100);
+	                    ps.setLong(4, System.currentTimeMillis());
+	                    ps.executeUpdate();
+	                    Bukkit.getLogger().info("[NightBox] Logged refund for: " + player.getName());
+	                } catch (SQLException ex) {
+	                    ex.printStackTrace();
+	                }
+	            });
+	            break;
+	        }
+	    }
+	}
+
+	@EventHandler
+	public void onPlayerJoin(PlayerJoinEvent e) {
+	    Player player = e.getPlayer();
+	    UUID id = player.getUniqueId();
+
+	    Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(), () -> {
+	        try (PreparedStatement ps = Main.getConnection().prepareStatement(
+	                "SELECT message, amount FROM pending_refunds WHERE player_uuid = ?")) {
+	            ps.setString(1, id.toString());
+
+	            try (ResultSet rs = ps.executeQuery()) {
+	                if (rs.next()) {
+	                    String message = rs.getString("message");
+	                    int amount = rs.getInt("amount");
+
+	                    Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+	                        for (ItemStack item : player.getInventory().getContents()) {
+	                            if (item != null && item.getType() == Material.STICK &&
+	                                item.hasItemMeta() && item.getItemMeta().hasDisplayName() &&
+	                                ChatColor.stripColor(item.getItemMeta().getDisplayName()).equalsIgnoreCase("Nightbox Key")) {
+	                                player.getInventory().remove(item);
+	                                break;
+	                            }
+	                        }
+
+	                        Coins.addCoins(player, amount);
+	                        new ActionBar(prefix + message).sendToPlayer(player);
+
+	                        int coins = Coins.getCoins(player);
+	                        int shards = EvoShards.getShards(player);
+	                        String rankName = this.rankManager.getRank(player).getPrefix();
+	                        String serverName = "Lobby";
+	                        this.rankManager.updateSidebar(player, coins, shards, rankName, serverName);
+	                        Bukkit.getLogger().info("Refunded " + amount + " coins to " + player.getName());
+	                    });
+
+	                    try (PreparedStatement delete = Main.getConnection().prepareStatement(
+	                            "DELETE FROM pending_refunds WHERE player_uuid = ?")) {
+	                        delete.setString(1, id.toString());
+	                        delete.executeUpdate();
+	                    }
+	                }
+	            }
+	        } catch (SQLException ex) {
+	            ex.printStackTrace();
+	        }
+	    });
+	}
+
+	public void restoreLobbyItems(Player p) {
+	    PlayerInventory inventory = p.getInventory();
+	    ItemStack cosmetics = new ItemStack(Material.CHEST);
+	    ItemMeta cosmeticsMeta = cosmetics.getItemMeta();
+	    cosmeticsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Cosmetics");
+	    cosmeticsMeta.setLore(Collections.singletonList(ChatColor.RED + "Have lots of fun!"));
+	    cosmetics.setItemMeta(cosmeticsMeta);
+	    inventory.setItem(4, cosmetics);
+	    ItemStack selector = new ItemStack(Material.COMPASS);
+	    ItemMeta selectorMeta = selector.getItemMeta();
+	    selectorMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Game Selector");
+	    selectorMeta.setLore(Collections.singletonList(ChatColor.RED + "Choose a minigame"));
+	    selector.setItemMeta(selectorMeta);
+	    inventory.setItem(1, selector);
+	    ItemStack prefs = new ItemStack(Material.REDSTONE_COMPARATOR);
+	    ItemMeta prefsMeta = prefs.getItemMeta();
+	    prefsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Prefs");
+	    prefsMeta.setLore(Collections.singletonList(ChatColor.RED + "Settings menu"));
+	    prefs.setItemMeta(prefsMeta);
+	    inventory.setItem(7, prefs);
+	}
+	
+	
+	private void releaseCrateSpots(List<Location> platforms) {
+	    for (Location platform: platforms) {
+	        activeCrateSpots.remove(platform);
+	    }
+	}
+}
