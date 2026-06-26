@@ -1,0 +1,72 @@
+#### General Features of Plugin #####
+
+As stated earlier, I am only providing sample files. However, all features stated in this file are current implemented, working features. 
+
+The full plugin itself contains:
+
+Main:
+Join/Quit Messages, Ranks, Coins, Leveling System, Spawn Items such as a game selector, custom tab and scoreboard, cosmetics, and prefences. 
+
+Cosmetics:
+Nightboxes to obtain cosmetics, morphs, gadgets, pets, outfits, and particles. Cosmetics can also evolve when you have 5 shards, you may spin to evolve a random one, an evolved cosmetic is a more crazy version of your current one. You are able to ride your pets.
+
+Cosmetic List:
+- TNT
+- Chicken Missle
+- Paintball Gun Gadget
+- Lucky Block Gadget 
+- Teleport Bow Gadget
+- Sugar Rush Gadget
+- Thor Hammer Gadget
+- Fish Slap Gadget
+- Flame Particle
+- Love Particle
+- Shiny Particle
+- Smoke Particle
+- Water Particle
+- Cloud Particle
+- Cow Morph
+- Enderman Morph
+- Zombie Morph
+- Pigman Morph
+- Blaze Morph
+- Ocelot Morph
+- Astrounaut Outfit
+- Ghast Outfit
+- Chains Outfit
+- Scarecrow Outfit
+- Spider Pet
+- Pig Pet
+- Dog Pet
+- Sheep Pet
+- Chicken Pet
+- Rabbit Pet
+
+Evolved Cosmetics:
+For the gadgets the abilites would be enhanced. For the morphs the regular morph abilites are also enhanced, the particles geometry would be a lot cooler, The outfits gain abilites, the pets gain abilites when mounted. 
+
+Preferences:
+You may enable/disable stacker, enable/disable players, and enable/disable chat.
+
+Commands: 
+Contains a /egg command for a custom item, taunt, flying, teleporting, teleport requesting (/tpa), kill, spawn, taunts, holograms, setspawn, command to get spawn items, gamemode, give, custom help text, giving shards coins or xp, healing, msg, clear, hub, and friend.
+
+Ranks:
+Custom ranks include Owner, Admin, Mod, Builder, and Warewolf, each are shown in tab, appear on your nametag and appear as a chat prefix. Each contain unique permissions. A punishment system is also implemented for mods and above. 
+
+Minigames:
+When joining minigames server, first to click in chat to be minigame host gets it, hosts may pick the game, add/remove cohosts, transfer host to someone else, reset server by kicking all players, and when minigame is selected they may stop the countdown, or spam the start button to speed it up.
+
+Currently, I only have one map for each minigame.
+
+Minigame List: Evolution, Speed Builders, Mob Brawl, Pupwars, Escort, Maze Escape, Paint Domination, Tower Clash, and Micro.
+
+Evolution is where you start as a skeleton horse and when killing a player shift to evolve until evolved past a baby zombie, each mob has unique abilites.
+Speed Builders is where you see a build preview and try to rebuild it most accurately in a time limit.
+Mob Brawl gives you four lives and each mob has abilites, last mob standing wins.
+Pupwars you have a puppy and teams, you may buy defenses or stations to build around the puppy, once puppy is killed your team can no longer respawn, get to other islands through bridges, defenses include a cannon and a blaze, lots of items assist you.
+Escort is when you have a villager, once it dies you're out, each zone has mobs and a miniboss, on each miniboss death you proceed to next zone, mobs and natural disasters kill the player, you may respawn but after the villager dies everyone loses, defeat final boss to win.
+Maze Escape is when blocks fall overtime quicker and quicker, first to reach the end wins.
+Paint Domination is when you have paintball guns, you capture a base by sneaking and whichever team reaches the needed points wins. 
+Tower Clash: Use your mobs to defeat other teams snow golems.
+Micro: Very small minigames for a point for the winner, first to a certain number of wins wins the game. Micro minigames include spleef, villager knock, splat, one in the quiver, Sheep rain, and stacker sweep. An overtime minigame pig sit is there too, only for overtime.
