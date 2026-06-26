@@ -1,0 +1,280 @@
+### Preferences ###
+
+public class PrefsMenu implements Listener {
+
+public final Set<UUID> chatOff = new HashSet<>();
+private final Set<UUID> toggle = new HashSet<>();
+private final Set<UUID> playerVisibility = new HashSet<>();
+
+	private Main plugin;
+
+	public PrefsMenu(Main plugin) {
+	this.plugin = plugin;
+	}
+	
+	public String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Prefs] ";
+	public String prefix2 = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Stacker] ";
+	public String prefix3 = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Punish] ";
+	
+	public Inventory createPrefsInventory(Player player) {
+	    Inventory prefsInv = Bukkit.createInventory(null, 27, ChatColor.LIGHT_PURPLE + "Prefs");
+	    boolean isChatEnabled = !chatOff.contains(player.getUniqueId());
+	    ItemStack chatToggle = new ItemStack(Material.INK_SACK, 1, (short) (isChatEnabled ? 10 : 8));
+	    ItemMeta chatMeta = chatToggle.getItemMeta();
+	    chatMeta.setDisplayName((isChatEnabled ? ChatColor.GREEN + "On" : ChatColor.RED + "Off"));
+	    chatToggle.setItemMeta(chatMeta);
+	    prefsInv.setItem(11, chatToggle);
+	    boolean isStackerEnabled = toggle.contains(player.getUniqueId());
+	    ItemStack stackerToggle = new ItemStack(Material.INK_SACK, 1, (short) (isStackerEnabled ? 10 : 8));
+	    ItemMeta stackerMeta = stackerToggle.getItemMeta();
+	    stackerMeta.setDisplayName((isStackerEnabled ? ChatColor.GREEN + "On" : ChatColor.RED + "Off"));
+	    stackerToggle.setItemMeta(stackerMeta);
+	    prefsInv.setItem(13, stackerToggle);
+	    boolean arePlayersVisible = playerVisibility.contains(player.getUniqueId());
+	    ItemStack playersToggle = new ItemStack(Material.INK_SACK, 1, (short) (arePlayersVisible ? 10 : 8));
+	    ItemMeta playersMeta = playersToggle.getItemMeta();
+	    playersMeta.setDisplayName((arePlayersVisible ? ChatColor.GREEN + "Visible" : ChatColor.RED + "Hidden"));
+	    playersToggle.setItemMeta(playersMeta);
+	    prefsInv.setItem(15, playersToggle);
+	    ItemStack close = new ItemStack(Material.BARRIER);
+	    ItemMeta closeMeta = close.getItemMeta();
+	    closeMeta.setDisplayName(ChatColor.DARK_RED + "Close");
+	    close.setItemMeta(closeMeta);
+	    prefsInv.setItem(26, close);
+	    ItemStack chatpaper = new ItemStack(Material.PAPER);
+	    ItemMeta chatMeta1 = chatpaper.getItemMeta();
+	    chatMeta1.setDisplayName(ChatColor.GOLD + ChatColor.BOLD.toString() + "Chat");
+	    chatpaper.setItemMeta(chatMeta1);
+	    prefsInv.setItem(2, chatpaper);
+	    ItemStack chatpaper11 = new ItemStack(Material.SADDLE);
+	    ItemMeta chatMeta11 = chatpaper11.getItemMeta();
+	    chatMeta11.setDisplayName(ChatColor.GOLD + ChatColor.BOLD.toString() + "Stacker");
+	    chatpaper11.setItemMeta(chatMeta11);
+	    prefsInv.setItem(4, chatpaper11);
+	    ItemStack playerHead = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
+	    SkullMeta skullMeta = (SkullMeta) playerHead.getItemMeta();
+	    skullMeta.setOwner(player.getName());
+	    skullMeta.setDisplayName(ChatColor.GOLD + ChatColor.BOLD.toString() + "Players");
+	    playerHead.setItemMeta(skullMeta);
+	    prefsInv.setItem(6, playerHead);
+	    ItemStack greenDye = new ItemStack(Material.INK_SACK, 1, (short) 2);
+	    ItemMeta greenMeta = greenDye.getItemMeta();
+	    greenMeta.setDisplayName(ChatColor.GREEN + "Enabled");
+	    greenDye.setItemMeta(greenMeta);
+	    ItemStack grayDye = new ItemStack(Material.INK_SACK, 1, (short) 8);
+	    ItemMeta grayMeta = grayDye.getItemMeta();
+	    grayMeta.setDisplayName(ChatColor.GRAY + "Disabled");
+	    grayDye.setItemMeta(grayMeta);
+
+	    return prefsInv;
+	}
+	
+	@EventHandler
+	public void onInventoryClick(InventoryClickEvent event) {
+	    if (!(event.getWhoClicked() instanceof Player)) return;
+	    Player player = (Player) event.getWhoClicked();
+	    Inventory inventory = event.getInventory();
+	    if (!inventory.getName().equals(ChatColor.LIGHT_PURPLE + "Prefs")) return;
+	    event.setCancelled(true);
+	    ItemStack clicked = event.getCurrentItem();
+	    if (clicked == null || clicked.getType() == Material.AIR) return;
+	    int slot = event.getRawSlot();
+	    switch (slot) {
+	        case 11:
+	        	ChatToggleManager.toggleChat(player.getUniqueId());
+	            if (chatOff.contains(player.getUniqueId())) {
+	                chatOff.remove(player.getUniqueId());
+	                player.playSound(player.getLocation(), Sound.VILLAGER_YES, 2, 2);
+	            } else {
+	                chatOff.add(player.getUniqueId());
+	                player.playSound(player.getLocation(), Sound.VILLAGER_NO, 2, 2);
+	            }
+	            break;
+	        case 13:
+	            if (toggle.contains(player.getUniqueId())) {
+	                toggle.remove(player.getUniqueId());
+	                player.playSound(player.getLocation(), Sound.VILLAGER_NO, 2, 2);
+	            } else {
+	                toggle.add(player.getUniqueId());
+	                player.playSound(player.getLocation(), Sound.VILLAGER_YES, 2, 2);
+	            }
+	            break;
+	        case 15:
+	            if (playerVisibility.contains(player.getUniqueId())) {
+	                playerVisibility.remove(player.getUniqueId());
+	                for (Player p: Bukkit.getOnlinePlayers()) {
+	                    player.hidePlayer(p);
+	                }
+	                player.playSound(player.getLocation(), Sound.VILLAGER_NO, 2, 2);
+	            } else {
+	                playerVisibility.add(player.getUniqueId());
+	                for (Player p: Bukkit.getOnlinePlayers()) {
+	                    player.showPlayer(p);
+	                }
+	                player.playSound(player.getLocation(), Sound.VILLAGER_YES, 2, 2);
+	            }
+	            break;
+	        case 2:
+	            player.playSound(player.getLocation(), Sound.NOTE_STICKS, 2, 2);
+	            break;
+	        case 4:
+	        	player.playSound(player.getLocation(), Sound.NOTE_STICKS, 2, 2);
+	            break;
+	        case 6:
+	        	player.playSound(player.getLocation(), Sound.NOTE_STICKS, 2, 2);
+	            break;
+	        case 26:
+	            player.closeInventory();
+	            return;
+	        default:
+	            return;
+	    }
+	    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+	        player.openInventory(createPrefsInventory(player));
+	    }, 1L);
+	}
+	
+	@EventHandler
+	public void onCompassClick(PlayerInteractEvent event) {
+	    Player player = event.getPlayer();
+	    ItemStack item = event.getItem();
+
+	    if (item != null && item.getType() == Material.REDSTONE_COMPARATOR) {
+	        event.setCancelled(true);
+	        player.openInventory(createPrefsInventory(player));
+	    }
+	}
+	
+	@EventHandler
+	public void onPlayerQuitCleanup(PlayerQuitEvent e) {
+	    Player p = e.getPlayer();
+	    if (DisguiseAPI.isDisguised(p)) {
+	        DisguiseAPI.undisguiseToAll(p);
+	    }
+
+	    for (Player other: Bukkit.getOnlinePlayers()) {
+	        other.showPlayer(p);
+	    }
+
+	    toggle.remove(p.getUniqueId());
+	    playerVisibility.remove(p.getUniqueId());
+	}
+	
+	
+	private void updatePlayerVisibilityOnJoin(Player joiner) {
+	    for (Player other: Bukkit.getOnlinePlayers()) {
+	        if (other.equals(joiner)) continue;
+
+	        if (!playerVisibility.contains(other.getUniqueId())) {
+	            other.hidePlayer(joiner);
+	        } else {
+	            other.showPlayer(joiner);
+	        }
+
+	        if (!playerVisibility.contains(joiner.getUniqueId())) {
+	            joiner.hidePlayer(other);
+	        } else {
+	            joiner.showPlayer(other);
+	        }
+	    }
+	}
+	
+	@EventHandler
+	public void onPlayerJoin(PlayerJoinEvent e) {
+	    Player p = e.getPlayer();
+	    playerVisibility.add(p.getUniqueId());
+	    MobDisguise tempDisguise = new MobDisguise(DisguiseType.MAGMA_CUBE);
+	    tempDisguise.setViewSelfDisguise(false);
+	    DisguiseAPI.disguiseToAll(p, tempDisguise);
+	    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+	        DisguiseAPI.undisguiseToAll(p);
+	        updatePlayerVisibilityOnJoin(p);
+	    }, 5L);
+
+	}
+
+	@EventHandler
+	public void onChat(AsyncPlayerChatEvent event) {
+	    Player sender = event.getPlayer();
+	    UUID uid = sender.getUniqueId();
+	    if (PunishMenuListener.pending.containsKey(uid)) {
+	        event.setCancelled(true);
+	        return;
+	    }
+	    if (MuteManager.isMuted(uid)) {
+	        sender.sendMessage(prefix3 + ChatColor.GRAY + "You are muted and cannot speak.");
+	        sender.playSound(sender.getLocation(), Sound.ITEM_BREAK, 2f, 2f);
+	        event.setCancelled(true);
+	        return;
+	    }
+
+	    event.setCancelled(true);
+	    String message = sender.getDisplayName() + ChatColor.WHITE + ": " + event.getMessage();
+	    for (Player target: Bukkit.getOnlinePlayers()) {
+	        if (!ChatToggleManager.isChatOff(target.getUniqueId())) {
+	            target.sendMessage(message);
+	        }
+	    }
+	    if (ChatToggleManager.isChatOff(uid)) {
+	        sender.sendMessage(ChatColor.LIGHT_PURPLE  + ChatColor.BOLD.toString() + "[Prefs] "  + ChatColor.GRAY  + "You have chat turned off. Others can still see your messages.");
+	    }
+	}
+
+	@EventHandler
+	public void onClick(PlayerInteractEntityEvent e) {
+	    Player clicker = e.getPlayer();
+	    Entity ent = e.getRightClicked();
+	    String worldName = clicker.getWorld().getName();
+	    if (!worldName.equalsIgnoreCase("world") && !worldName.equalsIgnoreCase("Victory")) {
+	        return;
+	    }
+	    if (ent instanceof ArmorStand && ent.getCustomName() != null) {
+	        try {
+	            UUID ownerId = UUID.fromString(ent.getCustomName());
+	            Player target = Bukkit.getPlayer(ownerId);
+	            if (target != null) {
+	                handleStacking(clicker, target);
+	                e.setCancelled(true);
+	            }
+	        } catch (IllegalArgumentException ignored) {}
+	        return;
+	    }
+	    if (ent instanceof Player) {
+	        handleStacking(clicker, (Player) ent);
+	    }
+	}
+	@EventHandler
+	public void onLeftClick(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    if (!(e.getAction() == Action.LEFT_CLICK_AIR || e.getAction() == Action.LEFT_CLICK_BLOCK)) return;
+	    Entity ent = p.getPassenger();
+	    if (ent == null) return;
+	    ent.leaveVehicle();
+	    ent.setVelocity(p.getLocation().getDirection().multiply(1.5).setY(1));
+	    p.playSound(p.getLocation(), Sound.ANVIL_LAND, 1f, 1f);
+
+	                }
+	private void handleStacking(Player clicker, Player target) {
+	    if (clicker.equals(target)) return;
+	    UUID tID = target.getUniqueId();
+	    if (!toggle.contains(tID)) {
+	        new ActionBar(prefix2 + ChatColor.GRAY + ChatColor.BOLD + target.getName() + ChatColor.GRAY + " has stacker disabled!").sendToPlayer(clicker);
+	        clicker.playSound(clicker.getLocation(), Sound.CAT_MEOW, 2, 2);
+	        return;
+	    }
+
+	    Entity passenger = clicker.getPassenger();
+	    if (passenger == null) {
+	        clicker.setPassenger(target);
+	    } else {
+	        while (passenger.getPassenger() != null) {
+	            passenger = passenger.getPassenger();
+	        }
+	        if (!passenger.equals(target)) {
+	            passenger.setPassenger(target);
+	        }
+	    }
+
+
+	    }
+	}
