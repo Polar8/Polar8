@@ -22,10 +22,9 @@ What this Contains:
 - Sample Party System Main Methods.
 - Cosmetic System overview with evolutions, with 2 sample cosmetics.
 - Main Crates Open Method (Nightboxes)
-- In-game rank System, sample storage screenshots in MYSQL database.
 - Sample Preferences Menu. 
 - Sample Currency Method, Coins.
-- Sample Rank System Containing Enum and Main Rank Command Class.
+- Sample Rank System Containing Enum and Main Rank Class.
 - Private Minigame Server Method, with samples from the main menu of the in-game server game item.
 - Sample Method Minigame File: Pupwars, teams system.
 - Sample Minigame Custom Abilities: Escort Minigame Items.
