@@ -8,13 +8,15 @@ I am currently a university student pursuing a dual major in bioengineering and 
 
 I have experience using Java, typically working on Minecraft plugins as a hobby. I have lightly looked into other programming languages, but I am mostly familiar with **Java and MATLAB**
 
-I also have MYSQL experience. 
+I also have MYSQL experience.
+ 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 What is NightMC:
 
 NightMC is a name for my private minigame Minecraft server project that I've been working on to have a good time with friends.
 
-In this respritory I am not showcasing my whole project, but I am showcasing aspects of the project with sample files to show a general idea of what it contains.
+**In this repository, I am not showcasing my whole project, but I am showcasing aspects of the project with sample files to show a general idea of what it contains.**
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 What this Contains:
 - File listing all features in the plugin currently.
