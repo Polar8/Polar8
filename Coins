@@ -1,0 +1,49 @@
+### Coins Method ###
+
+public class Coins {
+
+    private static Connection getConnection() {
+		return Main.getConnection();
+    }
+
+    public static int getCoins(Player player) {
+        int coins = 0;
+        try (PreparedStatement stmt = getConnection().prepareStatement(
+                "SELECT coins FROM players_coins WHERE player_uuid = ?")) {
+            stmt.setString(1, player.getUniqueId().toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    coins = rs.getInt("coins");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return coins;
+    }
+
+    public static void setCoins(Player player, int coins) {
+        try (PreparedStatement stmt = getConnection().prepareStatement(
+                "UPDATE players_coins SET coins = ? WHERE player_uuid = ?")) {
+            stmt.setInt(1, coins);
+            stmt.setString(2, player.getUniqueId().toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void addCoins(Player player, int amount) {
+        int current = getCoins(player);
+        setCoins(player, current + amount);
+    }
+
+    public static void removeCoins(Player player, int amount) {
+        int current = getCoins(player);
+        setCoins(player, Math.max(0, current - amount));
+    }
+    
+    public static boolean hasAtLeast(Player player, int amount) {
+        return getCoins(player) >= amount;
+    }
+}
