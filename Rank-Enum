@@ -1,0 +1,24 @@
+### Ranks Enum File ####
+
+public enum Rank {
+  OWNER(ChatColor.DARK_RED + ChatColor.BOLD.toString() + "Owner"),
+  ADMIN(ChatColor.RED + ChatColor.BOLD.toString() + "Admin"),
+  MOD(ChatColor.GOLD + ChatColor.BOLD.toString() + "Mod"),
+  BUILDER(ChatColor.BLUE + ChatColor.BOLD.toString() + "Builder"),
+  WAREWOLF(ChatColor.DARK_PURPLE + ChatColor.BOLD.toString() +  "Warewolf"),
+  MEMBER("");
+  
+  private final String prefix;
+  
+  Rank(String prefix) {
+    this.prefix = prefix;
+  }
+  
+  public String getPrefix() {
+    return this.prefix;
+  }
+  
+  public boolean hasPrefix() {
+    return !this.prefix.isEmpty();
+  }
+}
