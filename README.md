@@ -17,7 +17,7 @@ NightMC is a name for my private minigame Minecraft server project that I've bee
 In this respritory I am not showcasing my whole project, but I am showcasing aspects of the project with sample files to show a general idea of what it contains.
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 What this Contains:
-- README file listing all features in the plugin currently.
+- File listing all features in the plugin currently.
 - Sample Main Minigame Method File: Tower Clash
 - Sample Party System Main Methods.
 - Cosmetic System overview with evolutions, with 2 sample cosmetics.
