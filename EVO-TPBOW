@@ -1,0 +1,102 @@
+### Evolved Teleport Bow ####
+
+public class EvoBow implements Listener {
+
+    private final Map<UUID, Endermite> teleportMarkers = new HashMap<>();
+    private final String bowName = ChatColor.stripColor("Evolved Teleport Bow");
+    private final String markerName = ChatColor.DARK_PURPLE + "%s's Waypoint";
+    public String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Gadgets] ";
+
+    public EvoBow() {
+    }
+
+    @EventHandler
+    public void onArrowLand(ProjectileHitEvent event) {
+        if (!(event.getEntity().getShooter() instanceof Player)) return;
+        Player player = (Player) event.getEntity().getShooter();
+        ItemStack mainHand = player.getInventory().getItemInHand();
+        if (mainHand == null || !mainHand.hasItemMeta()) return;
+        ItemMeta meta = mainHand.getItemMeta();
+        if (!meta.hasDisplayName()) return;
+        if (!ChatColor.stripColor(meta.getDisplayName()).equalsIgnoreCase(bowName)) return;
+
+        Endermite previous = teleportMarkers.get(player.getUniqueId());
+        if (previous != null && !previous.isDead()) {
+            previous.remove();
+        }
+        Location location = event.getEntity().getLocation();
+        Endermite endermite = (Endermite) player.getWorld().spawnEntity(location, EntityType.ENDERMITE);
+        endermite.setCustomName(String.format(markerName, player.getName()));
+        endermite.setCustomNameVisible(true);
+        makeSilent(endermite);
+        teleportMarkers.put(player.getUniqueId(), endermite);
+        CraftEndermite craftEndermite = (CraftEndermite) endermite;
+        EntityEndermite nmsEndermite = (EntityEndermite) craftEndermite.getHandle();
+        NBTTagCompound tag = new NBTTagCompound();
+        nmsEndermite.c(tag);
+        tag.setByte("NoAI", (byte) 1);
+        nmsEndermite.f(tag);
+        spawnParticles(location);
+        ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "Evo BOwwW! Here we go!");
+        actionBar.sendToPlayer(player);
+    }
+    
+    public static void makeSilent(LivingEntity entity) {
+	    EntityLiving nmsEntity = ((CraftLivingEntity) entity).getHandle();
+	    NBTTagCompound tag = new NBTTagCompound();
+	    nmsEntity.c(tag);
+	    tag.setBoolean("Silent", true); 
+	    nmsEntity.f(tag);
+	}
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInHand();
+        if (item == null || item.getType() != Material.BOW) return;
+        if (!item.hasItemMeta()) return;
+        ItemMeta meta = item.getItemMeta();
+        if (!meta.hasDisplayName()) return;
+        if (!ChatColor.stripColor(meta.getDisplayName()).equalsIgnoreCase(bowName)) return;
+
+        Endermite marker = teleportMarkers.get(player.getUniqueId());
+        if (marker != null && !marker.isDead()) {
+            Location targetLocation = marker.getLocation();
+            marker.remove();
+            teleportMarkers.remove(player.getUniqueId());
+            player.teleport(targetLocation);
+            player.playSound(targetLocation, Sound.ENDERMAN_TELEPORT, 1.0F, 1.0F);
+            ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "Teleported to waypoint");
+            actionBar.sendToPlayer(player);
+        } else {
+        	ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "No waypoint found");
+            actionBar.sendToPlayer(player);
+        }
+    }
+
+    @EventHandler
+    public void onBowUse(PlayerItemDamageEvent event) {
+        ItemStack item = event.getItem();
+        if (item != null && item.getType() == Material.BOW) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null && meta.hasDisplayName() && ChatColor.stripColor(meta.getDisplayName()).equalsIgnoreCase(bowName)) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    private void spawnParticles(Location center) {
+        World world = center.getWorld();
+        double radius = 1.5;
+        for (int angle = 0; angle < 360; angle += 10) {
+            double radians = Math.toRadians(angle);
+            double x = Math.cos(radians) * radius;
+            double z = Math.sin(radians) * radius;
+            Location particleLoc = center.clone().add(x, 0, z);
+            world.playEffect(particleLoc, Effect.ENDER_SIGNAL, 0);
+            world.playEffect(particleLoc, Effect.MOBSPAWNER_FLAMES, 0);
+        }
+    }
+}
+
