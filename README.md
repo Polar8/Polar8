@@ -24,7 +24,7 @@ What this Contains:
 - Main Crates Open Method (Nightboxes)
 - Sample Preferences Menu. 
 - Sample Currency Method, Coins.
-- Sample Rank System Containing Enum and Main Rank Command Class and MYSQL Screenshot.
+- Sample Rank System Containing Enum and Main Rank Class and MYSQL Screenshot.
 - Private Minigame Server Method, with samples from the main menu of the in-game server game item.
 - Sample Method Minigame File: Pupwars, teams system.
 - Sample Minigame Custom Abilities: Escort Minigame Items.
