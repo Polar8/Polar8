@@ -1,0 +1,157 @@
+### This was first made for pupwars, but is used across other games ###
+
+public class TeamData {
+    private final String name;
+    private Location playerSpawn;
+    private Location dogSpawn;
+    private Wolf teamDog;
+    private final Set<UUID> members = new HashSet<>();
+
+    public TeamData(String name) {
+        this.name = name;
+    }
+
+    public void setPlayerSpawn(Location loc) { this.playerSpawn = loc; }
+    public void setDogSpawn (Location loc) { this.dogSpawn = loc; }
+
+    public void addMember(Player player) {
+        members.add(player.getUniqueId());
+        player.teleport(playerSpawn);
+        giveTeamPaper(player);
+        equipTeamArmor(player);
+    }
+    
+    private void removeNearbyWolves(Location center, double radius) {
+        for (Entity entity : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+            if (entity instanceof Wolf) {
+                entity.remove();
+            }
+        }
+    }
+    
+    public void updateDogName() {
+        if (teamDog == null || !teamDog.isValid()) return;
+
+        teamDog.setCustomName(ChatColor.GREEN + name + " Dog "+ ChatColor.RED + "❤ "+ ChatColor.WHITE + (int) teamDog.getHealth() + "/" + (int) teamDog.getMaxHealth());
+    }
+    
+    public void clearMembers() {
+        members.clear();
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        TeamData other = (TeamData) obj;
+        return name.equalsIgnoreCase(other.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return name.toLowerCase().hashCode();
+    }
+
+    void equipTeamArmor(Player player) {
+        Color dye;
+        switch (name.toLowerCase()) {
+            case "red":   dye = Color.fromRGB(255, 0, 0); break;
+            case "blue":  dye = Color.fromRGB(0, 0, 255); break;
+            case "green": dye = Color.fromRGB(0, 255, 0); break;
+            case "yellow": dye = Color.fromRGB(255, 255, 0); break;
+            default: dye = Color.WHITE;
+        }
+        ItemStack helmet = new ItemStack(Material.LEATHER_HELMET);
+        ItemStack chest  = new ItemStack(Material.LEATHER_CHESTPLATE);
+        ItemStack legs   = new ItemStack(Material.LEATHER_LEGGINGS);
+        ItemStack boots  = new ItemStack(Material.LEATHER_BOOTS);
+        for (ItemStack item : new ItemStack[]{helmet, chest, legs, boots}) {
+            LeatherArmorMeta lam = (LeatherArmorMeta) item.getItemMeta();
+            lam.setColor(dye);
+            item.setItemMeta(lam);
+        }
+        player.getInventory().setHelmet(helmet);
+        player.getInventory().setChestplate(chest);
+        player.getInventory().setLeggings(legs);
+        player.getInventory().setBoots(boots);
+    }
+
+	public boolean hasMember(Player player) {
+        return members.contains(player.getUniqueId());
+    }
+
+    private void giveTeamPaper(Player player) {
+        ItemStack paper = new ItemStack(Material.PAPER, 1);
+        ItemMeta meta = paper.getItemMeta();
+        meta.setDisplayName(name + " Team");
+        paper.setItemMeta(meta);
+        player.getInventory().clear();
+        player.getInventory().setItem(9, paper);
+    }
+
+    public void removeDog() {
+        if (teamDog != null) {
+            teamDog.remove();
+            teamDog = null;
+        }
+    }
+
+    private void clearSpawnAreaOfDogs() {
+        for (Entity e : dogSpawn.getWorld().getNearbyEntities(dogSpawn, 1, 1, 1)) {
+            if (e instanceof Wolf) {
+                Wolf w = (Wolf) e;
+                String dogName = name + " Dog";
+                if (w.getCustomName() != null && dogName.equals(w.getCustomName())) {
+                   w.remove();
+                }
+            }
+        }
+        }
+    
+    public void spawnDog() {
+        removeDog();
+        clearSpawnAreaOfDogs();
+        removeNearbyWolves(dogSpawn, 10);
+        teamDog = (Wolf) dogSpawn.getWorld().spawnEntity(dogSpawn, EntityType.WOLF);
+        CraftWolf craftWolf = (CraftWolf) teamDog;
+        EntityWolf nmsWolf = (EntityWolf) craftWolf.getHandle();
+        NBTTagCompound tag = new NBTTagCompound();
+        nmsWolf.c(tag);
+        tag.setByte("NoAI", (byte) 1);
+        nmsWolf.f(tag);
+        teamDog.setMaxHealth(70.0);
+        teamDog.setHealth(70.0);
+        teamDog.setTamed(true);
+        teamDog.setOwner(null);
+        teamDog.setCustomNameVisible(true);
+        teamDog.setBaby();
+        updateDogName();
+        NPCManagement.makeSilent(teamDog);
+    }
+
+    
+    public Wolf getDog() {
+        return teamDog;
+    }
+
+    public boolean isDog(Wolf wolf) {
+        return teamDog != null && teamDog.getUniqueId().equals(wolf.getUniqueId());
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Location getPlayerSpawn() {
+        return playerSpawn;
+    }
+
+	 public Set<UUID> getMemberUUIDs() {
+        return Collections.unmodifiableSet(members);
+    }
+
+public List<Player> getPlayers() {
+    return members.stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline()).collect(Collectors.toList());
+}
+
+}
