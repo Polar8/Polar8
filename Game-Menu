@@ -1,0 +1,481 @@
+#### Main Game Menu ####
+
+public class InventoryListener implements Listener {
+    private final GameManager gameManager;
+    private final GUIManager  guiManager;
+    private Main plugin;
+    private final LevelManager level;
+    private final String prefix = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[Games] ";
+    private final String prefix5 = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[Death] ";
+
+    public InventoryListener(GameManager gm, GUIManager gui, Main plugin, LevelManager level, MobBrawlListener mb) {
+        this.gameManager = gm;
+        this.guiManager  = gui;
+        this.level = level;
+        this.plugin = plugin;
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent e) {
+        if (e.getAction() != Action.RIGHT_CLICK_AIR
+         && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        ItemStack inHand = e.getItem();
+        if (inHand == null
+         || inHand.getType() != Material.MELON
+         || !inHand.hasItemMeta()) return;
+        String name = ChatColor.stripColor(inHand.getItemMeta().getDisplayName());
+        if (!"Game Menu".equals(name)) return;
+        e.setCancelled(true);
+        guiManager.openMainMenu(e.getPlayer());
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent e) {
+        if (!(e.getWhoClicked() instanceof Player)) return;
+        Player clicker = (Player)e.getWhoClicked();
+        Inventory inv  = e.getInventory();
+        String title   = inv.getTitle();
+        ItemStack clicked = e.getCurrentItem();
+        if (clicked == null || !clicked.hasItemMeta()) return;
+        String name = clicked.getItemMeta().getDisplayName();
+        if (GUIManager.MAIN_TITLE.equals(title)) {
+            e.setCancelled(true);
+            if (name.equals(ChatColor.GREEN + "Start Countdown")) {
+            gameManager.startOrReduceCountdown();
+            for (Player pl: Bukkit.getOnlinePlayers()) {
+                pl.playSound(pl.getLocation(), Sound.NOTE_PLING, 3F, 3F);
+            }
+            }
+            else if (name.equals(ChatColor.RED + "Stop Countdown")) {
+             gameManager.stopGame();
+             Bukkit.broadcastMessage(prefix + ChatColor.RED + "Game stopped");
+            }
+            else if (name.equals(ChatColor.AQUA + "Select Game")) {
+                guiManager.openSelectGame(clicker);
+            }
+            else if (name.equals(ChatColor.YELLOW + "Permissions")) {
+                guiManager.openPermissionMenu(clicker);
+            }
+            else if (name.equals(ChatColor.WHITE + "Close")) {
+                clicker.closeInventory();
+            }
+            else if (name.equals(ChatColor.DARK_RED + "Reset Players")) {
+                gameManager.kickAll();
+            }
+            return;
+        }
+
+        // ─── Permissions Menu ───────────────────────────────────────────
+        if (GUIManager.PERM_TITLE.equals(title)) {
+            e.setCancelled(true);
+            if (name.equals(ChatColor.GOLD + "Make Host")) {
+                guiManager.openPlayerSelectionMenu(clicker, PermAction.MAKE_HOST);
+            }
+            else if (name.equals(ChatColor.GREEN + "Add Co-host")) {
+                guiManager.openPlayerSelectionMenu(clicker, PermAction.ADD_COHOST);
+            }
+            else if (name.equals(ChatColor.RED + "Remove Co-host")) {
+                guiManager.openPlayerSelectionMenu(clicker, PermAction.REM_COHOST);
+            }
+            else if (name.equals(ChatColor.GRAY + "Back")) {
+                guiManager.openMainMenu(clicker);
+            }
+            return;
+        }
+
+        // ─── Player-Selection Menus ────────────────────────────────────
+        String selNew = ChatColor.YELLOW + "Select New Host";
+        String selAdd = ChatColor.YELLOW + "Add Co-host";
+        String selRem = ChatColor.YELLOW + "Remove Co-host";
+        if (selNew.equals(title)
+         || selAdd.equals(title)
+         || selRem.equals(title)) {
+
+            e.setCancelled(true);
+
+            if (name.equals(ChatColor.GRAY + "Back")) {
+                guiManager.openPermissionMenu(clicker);
+                return;
+            }
+
+            String targetName = ChatColor.stripColor(name);
+            Player target = Bukkit.getPlayerExact(targetName);
+            if (target == null) return;
+
+            if (selNew.equals(title)) {
+            	gameManager.removeHost();
+                clicker.setPlayerListName(clicker.getDisplayName());
+                gameManager.setHost(target);
+            }
+            else if (selAdd.equals(title)) {
+                gameManager.addCohost(target);
+            }
+            else if (selRem.equals(title)) {
+                gameManager.removeCohost(target);
+            }
+
+            clicker.closeInventory();
+            return;
+        }
+
+        // ─── Select-Game Menu ───────────────────────────────────────────
+        if (GUIManager.SELECT_TITLE.equals(title)) {
+            e.setCancelled(true);
+
+            if (name.equals(ChatColor.GRAY + "Close")) {
+                clicker.closeInventory();
+            }
+            
+            if (name.equals(ChatColor.RED + ChatColor.BOLD.toString() + "Random")) {
+            	gameManager.setGame("Random");
+                clicker.closeInventory();
+            }
+            
+            else if (name.equals(ChatColor.GRAY + "Back")) {
+                guiManager.openMainMenu(clicker);
+            }
+            else {
+                String game = ChatColor.stripColor(name);
+                gameManager.setGame(game);
+
+                if (game.equalsIgnoreCase("Evolution")) {
+                	despawnAllGameNPCs();
+                    NPCManagement.spawnNOKitVillager();
+                    NPCManagement.spawnEvoVillager();
+                    for (Player players: Bukkit.getOnlinePlayers()) {
+                    	players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                    	players.removeMetadata("selected_kit", plugin);
+                    }
+                }
+                else if (game.equalsIgnoreCase("Speed Builders")) {
+                	despawnAllGameNPCs();
+                    NPCManagement.spawnNOKitVillager();
+                    NPCManagement.spawnSBVillager();
+                    for (Player players: Bukkit.getOnlinePlayers()) {
+                    	players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                    	players.removeMetadata("selected_kit", plugin);
+                    }
+                }
+                    else if (game.equalsIgnoreCase("Mob Brawl")) {
+                    	despawnAllGameNPCs();
+                        NPCManagement.spawnKitMBVillager();
+                        NPCManagement.spawnMBVillager();
+                        for (Player players: Bukkit.getOnlinePlayers()) {
+                        	players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                        	players.removeMetadata("selected_kit", plugin);
+                        }
+                }
+                    else if (game.equalsIgnoreCase("Pupwars")) {
+                    	despawnAllGameNPCs();
+                        NPCManagement.spawnPWVillager();
+                        NPCManagement.spawnKitPWVillager();
+                        for (Player players: Bukkit.getOnlinePlayers()) {
+                        	players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                        	players.removeMetadata("selected_kit", plugin);
+                        }
+                    }
+                    else if (game.equalsIgnoreCase("Escort")) {
+                       despawnAllGameNPCs();
+                       NPCManagement.spawnESVillager();
+                       NPCManagement.spawnKitESVillager();
+                       for (Player players: Bukkit.getOnlinePlayers()) {
+                            players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                            players.removeMetadata("selected_kit", plugin);
+                            }
+                       }
+                    else if (game.equalsIgnoreCase("Maze Escape")) {
+                    	despawnAllGameNPCs();
+                        NPCManagement.spawnKitMEVillager();
+                        NPCManagement.spawnMEVillager();
+                        for (Player players: Bukkit.getOnlinePlayers()) {
+                             players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                             players.removeMetadata("selected_kit", plugin);
+                             }
+                        }
+                
+                    else if (game.equalsIgnoreCase("Paint Domination")) {
+                    	despawnAllGameNPCs();
+                        NPCManagement.spawnKitPBDomVillager();
+                        NPCManagement.spawnPBVillager();
+                        for (Player players: Bukkit.getOnlinePlayers()) {
+                             players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                             players.removeMetadata("selected_kit", plugin);
+                             }
+                        }
+                
+                    else if (game.equalsIgnoreCase("Tower Clash")) {
+                    	despawnAllGameNPCs();
+                        NPCManagement.spawnTCVillager();
+                        NPCManagement.spawnKitTCVillager();
+                        for (Player players: Bukkit.getOnlinePlayers()) {
+                             players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                             players.removeMetadata("selected_kit", plugin);
+                             }
+                        }
+                
+                    else if (game.equalsIgnoreCase("Micro")) {
+                    	despawnAllGameNPCs();
+                        NPCManagement.spawnMRVillager();
+                        NPCManagement.spawnNOKitVillager();
+                        for (Player players: Bukkit.getOnlinePlayers()) {
+                             players.playSound(players.getLocation(), Sound.NOTE_PIANO, 3, 3);
+                             players.removeMetadata("selected_kit", plugin);
+                             }
+                        }                 
+                else {
+                	despawnAllGameNPCs();
+                }
+
+                clicker.sendMessage(prefix + ChatColor.GOLD + "Selected game: " + ChatColor.BOLD + game);
+                clicker.closeInventory();
+            }
+            return;
+        }
+        }
+    // ─── Other Methods ───────────────────────────────────────────
+    private void despawnAllGameNPCs() {
+        NPCManagement.despawnEvoVillager();
+        NPCManagement.despawnSBVillager();
+        NPCManagement.despawnMBVillager();
+        NPCManagement.despawnPWVillager();
+        NPCManagement.despawnESVillager();
+        NPCManagement.despawnMEVillager();
+        NPCManagement.despawnPBVillager();
+        NPCManagement.despawnTCVillager();
+        NPCManagement.despawnMRVillager();
+        NPCManagement.despawnNOKitVillager();
+        NPCManagement.despawnKitMEVillager();
+        NPCManagement.despawnKitPWVillager();
+        NPCManagement.despawnKitPBVillager();
+        NPCManagement.despawnKitMBVillager();
+        NPCManagement.despawnKitESVillager();
+        NPCManagement.despawnKitTCVillager();
+        NPCManagement.despawnKitVillager();
+    }
+    
+    public void updateGameNPCs(String game) {
+        game = ChatColor.stripColor(game);
+
+        despawnAllGameNPCs();
+
+        if (game.equalsIgnoreCase("Evolution")) {
+            NPCManagement.spawnNOKitVillager();
+            NPCManagement.spawnEvoVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Speed Builders")) {
+            NPCManagement.spawnNOKitVillager();
+            NPCManagement.spawnSBVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Mob Brawl")) {
+            NPCManagement.spawnMBVillager();
+            NPCManagement.spawnKitMBVillager();
+        }
+
+        else if (game.equalsIgnoreCase("PupWars")) {
+            NPCManagement.spawnPWVillager();
+            NPCManagement.spawnKitPWVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Escort")) {
+            NPCManagement.spawnESVillager();
+            NPCManagement.spawnKitESVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Maze Escape")) {
+            NPCManagement.spawnMEVillager();
+            NPCManagement.spawnKitMEVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Paint Domination")) {
+            NPCManagement.spawnPBVillager();
+            NPCManagement.spawnKitPBDomVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Tower Clash")) {
+            NPCManagement.spawnTCVillager();
+            NPCManagement.spawnKitTCVillager();
+        }
+
+        else if (game.equalsIgnoreCase("Micro")) {
+            NPCManagement.spawnNOKitVillager();
+            NPCManagement.spawnMRVillager();
+        }
+
+        resetSelectedKitsAndSound();
+    }
+    
+    private void resetSelectedKitsAndSound() {
+        for (Player p: Bukkit.getOnlinePlayers()) {
+            p.playSound(p.getLocation(), Sound.NOTE_PIANO, 3, 3);
+
+            if (p.hasMetadata("selected_kit")) {
+                p.removeMetadata("selected_kit", plugin);
+            }
+        }
+    }
+        
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent e) {
+        Player player = e.getPlayer();
+        PlayerInventory inv = player.getInventory();
+        Levels.ensurePlayerExists(player);
+        level.updateLevelFromXp(player);
+        player.getInventory().clear();
+        giveDefaultItems(player); 
+        player.removePotionEffect(PotionEffectType.JUMP);
+        player.removePotionEffect(PotionEffectType.SPEED);
+        player.removePotionEffect(PotionEffectType.INCREASE_DAMAGE);
+        player.removePotionEffect(PotionEffectType.FAST_DIGGING);
+        inv.setHelmet(new ItemStack(Material.AIR));
+        inv.setChestplate(new ItemStack(Material.AIR));
+        inv.setLeggings(new ItemStack(Material.AIR));
+        inv.setBoots(new ItemStack(Material.AIR));
+        ItemStack menuItem = new ItemStack(Material.MELON);
+        ItemMeta meta = menuItem.getItemMeta();
+        meta.setDisplayName(ChatColor.GOLD + "Game Menu");
+        menuItem.setItemMeta(meta);
+        if (gameManager.isCohost(player)) {
+            inv.setItem(8, menuItem);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                String name = player.getDisplayName();
+                player.setPlayerListName(name + ChatColor.DARK_PURPLE + " [COHOST]"
+                );
+            }, 2L);
+        } else {
+            ItemStack existing = inv.getItem(8);
+            if (existing != null
+             && existing.getType() == Material.MELON
+             && existing.hasItemMeta()
+             && ChatColor.stripColor(existing.getItemMeta().getDisplayName()).equals("Game Menu")) {
+                inv.clear(8);
+            }
+        }
+    }
+    
+       private void giveDefaultItems(Player player) {
+        PlayerInventory inventory = player.getInventory();
+        ItemStack gameSelector = new ItemStack(Material.COMPASS);
+        ItemMeta selectorMeta = gameSelector.getItemMeta();
+        selectorMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Game Selector");
+        selectorMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Choose a minigame" }));
+        gameSelector.setItemMeta(selectorMeta);
+        inventory.setItem(1, gameSelector);
+        ItemStack cosmetics = new ItemStack(Material.CHEST);
+        ItemMeta cosmeticsMeta = cosmetics.getItemMeta();
+        cosmeticsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Cosmetics");
+        cosmeticsMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Have lots of fun!" }));
+        cosmetics.setItemMeta(cosmeticsMeta);
+        inventory.setItem(4, cosmetics);
+        ItemStack prefs = new ItemStack(Material.REDSTONE_COMPARATOR);
+        ItemMeta prefsMeta = prefs.getItemMeta();
+        prefsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Prefs");
+        prefsMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Settings menu" }));
+        prefs.setItemMeta(prefsMeta);
+        inventory.setItem(7, prefs);
+      }
+
+	@EventHandler
+        public void onCommand(PlayerCommandPreprocessEvent e) {
+            Player p = e.getPlayer();
+            String[] blocked = {"/spawn", "/tpa", "/items", "/gm", "/fly", "/gamemode", "/game"};
+            if (!gameManager.isInGame()) return;
+            String msg = e.getMessage().toLowerCase().split(" ")[0];
+            for (String command: blocked) {
+                if (msg.equalsIgnoreCase(command)) {
+                    e.setCancelled(true);
+                    p.sendMessage(prefix + ChatColor.RED + "You cannot use that during the game!");
+                    return;
+                }
+            }
+        }
+	@EventHandler
+	public void onItemDrop(PlayerDropItemEvent e) {
+	    if (isPWRunning()) {
+	    return;
+	    } else if (gameManager.isInGame()) {
+	        e.setCancelled(true);
+	        e.getPlayer().playSound(e.getPlayer().getLocation(), Sound.CAT_MEOW, 2, 2);
+	    }
+	}
+        
+        
+        private boolean isPWRunning() {
+	        String cur = gameManager.getCurrentGame();
+	        boolean running = gameManager.isInGame() && cur != null && ChatColor.stripColor(cur).equalsIgnoreCase("Pupwars");
+	        return running;
+	    }
+	    
+        @EventHandler
+        public void onDeath(PlayerDeathEvent e) {
+          Player p = e.getEntity();
+          if (p.getWorld().getName().equals("world") && !gameManager.isInGame()) {
+            p.spigot().respawn(); 
+            ActionBar actionBar = new ActionBar(prefix5 + ChatColor.GREEN + "That was rough! Sheesh!");
+            actionBar.sendToPlayer(p);
+            p.playSound(p.getLocation(), Sound.LEVEL_UP, 2, 2);
+            PlayerInventory inventory = p.getInventory();
+            ItemStack cosmetics = new ItemStack(Material.CHEST);
+            ItemMeta serversMeta = cosmetics.getItemMeta();
+            serversMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Cosmetics");
+            serversMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Have lots of fun!" }));
+            cosmetics.setItemMeta(serversMeta);
+            inventory.setItem(4, cosmetics);
+            ItemStack servers = new ItemStack(Material.COMPASS);
+            ItemMeta serversMeta1 = servers.getItemMeta();
+            serversMeta1.setDisplayName(ChatColor.LIGHT_PURPLE + "Game Selector");
+            serversMeta1.setLore(Arrays.asList(new String[] { ChatColor.RED + "Choose a minigame" }));
+            servers.setItemMeta(serversMeta1);
+            inventory.setItem(1, servers);
+            ItemStack servers2 = new ItemStack(Material.REDSTONE_COMPARATOR);
+            ItemMeta serversMeta2 = servers2.getItemMeta();
+            serversMeta2.setDisplayName(ChatColor.LIGHT_PURPLE + "Prefs");
+            serversMeta2.setLore(Arrays.asList(new String[] { ChatColor.RED + "Settings menu" }));
+            servers2.setItemMeta(serversMeta2);
+            inventory.setItem(7, servers2);
+            World world = Bukkit.getWorld("world");
+            if (world == null) {
+                Bukkit.getLogger().warning("[Spawn] World 'world' not found.");
+                return;
+            }
+            double x = this.plugin.getConfig().getInt("X: ");
+            double y = this.plugin.getConfig().getInt("Y: ");
+            double z = this.plugin.getConfig().getInt("Z: ");
+            Location spawn = new Location(world, x, y, z);
+            spawn.setYaw(270);
+            spawn.setPitch(0);
+            p.teleport(spawn);
+          }
+    }
+        
+        @EventHandler
+        public void onVoidFall(PlayerMoveEvent event) {
+            Player player = event.getPlayer();
+            if (!gameManager.isInGame()) {
+            if (!player.getWorld().getName().equals("world")) return;
+            if (player.getLocation().getY() > 20) return;
+            double x = this.plugin.getConfig().getInt("X: ");
+            double y = this.plugin.getConfig().getInt("Y: ");
+            double z = this.plugin.getConfig().getInt("Z: ");
+            World world = Bukkit.getServer().getWorld("world");
+            Location spawn = new Location(world, x, y, z);
+            spawn.setYaw(270);
+            spawn.setPitch(0);
+            if (world == null) {
+                Bukkit.getLogger().warning("[Spawn] World 'world' not found.");
+                return;
+            }
+            player.teleport(spawn);
+            if (!Main.spawn) {
+                Main.spawn = true;
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                    Main.spawn = false;
+                    }
+                }.runTask(plugin);
+            }
+        }
+        }
+}
