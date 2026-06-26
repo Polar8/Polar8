@@ -1,0 +1,65 @@
+#### Sample Flame Particle ####
+
+
+public class Particle {
+  public static Map<UUID, Integer> TRAILS = new HashMap<>();
+  
+  private final UUID uuid;
+  
+  private final Player player;
+  
+  public Particle(UUID uuid, Player player) {
+    this.uuid = uuid;
+    this.player = player;
+  }
+  
+  
+  public void setID(int id) {
+    TRAILS.put(this.uuid, Integer.valueOf(id));
+  }
+  
+  public int getID() {
+    return ((Integer)TRAILS.get(this.uuid)).intValue();
+  }
+  
+  public boolean hasID() {
+    if (TRAILS.containsKey(this.uuid))
+      return true; 
+    return false;
+  }
+  
+  public void removeID() {
+    TRAILS.remove(this.uuid);
+  }
+  
+  public void endTask() {
+	    if (!hasID()) return;
+	    Bukkit.getScheduler().cancelTask(getID());
+	    removeID();
+	}
+  
+  public static boolean hasFakeID(UUID uuid) {
+    if (TRAILS.containsKey(uuid) && (
+      (Integer)TRAILS.get(uuid)).intValue() == 1)
+      return true; 
+    return false;
+  }
+  
+  public void startFlame() {
+	  int id = Bukkit.getScheduler().scheduleSyncRepeatingTask(
+	        Main.getPlugin(Main.class),
+	        new Runnable() {
+	            public void run() {
+	                Location loc = player.getLocation();
+	                for (int i = 0; i < 360; i += 5) {
+	                    Location flameLoc = loc.clone();
+	                    flameLoc.setZ(flameLoc.getZ() + Math.cos(i) * 2);
+	                    flameLoc.setX(flameLoc.getX() + Math.sin(i) * 2);
+	                    flameLoc.getWorld().playEffect(flameLoc, Effect.FLAME, 0);
+	                }
+	            }
+	        },
+	        0L, 3L
+	    );
+	    setID(id); 
+	}
