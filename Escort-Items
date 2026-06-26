@@ -1,0 +1,737 @@
+### Custom Items for Escort Minigame ###
+
+public class EscortListeners implements Listener {
+
+	  private final Main plugin;
+	  private final Map<UUID, Long> expiryMap = new HashMap<>();
+	  private final String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Escort] ";
+	  private static final String META_KEY = "healblock";
+	  private final Map<UUID, Integer> windShots = new HashMap<>();
+	  private final Map<UUID, Integer> knockbackUses = new HashMap<>();
+	  private final Map<UUID, Integer> sniperShots = new HashMap<>();
+	  private final Set<Location> activeIceCageCenters = new HashSet<>();
+	  public EscortListeners(Main plugin) {
+	    this.plugin = plugin;
+	  }
+	  
+	  private boolean isNamed(ItemStack item, String name) {
+		    if (item == null || !item.hasItemMeta()) return false;
+		    if (!item.getItemMeta().hasDisplayName()) return false;
+
+		    return ChatColor.stripColor(item.getItemMeta().getDisplayName())
+		            .equalsIgnoreCase(name);
+		}
+
+	  private boolean isOnCooldown(UUID id) {
+	    Long exp = expiryMap.get(id);
+	    return exp != null && System.currentTimeMillis() < exp;
+	  }
+
+	  private int getSecondsLeft(UUID id) {
+	    Long exp = expiryMap.get(id);
+	    if (exp == null) return 0;
+	    long msLeft = exp - System.currentTimeMillis();
+	    return (int)Math.ceil(msLeft / 1000.0);
+	  }
+
+	  private void startCooldown(UUID id, int seconds, Player player) {
+	    expiryMap.put(id, System.currentTimeMillis() + seconds * 1000L);
+	    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+	      expiryMap.remove(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You can use ability").sendToPlayer(player);
+	    }, seconds * 20L);
+	  }
+	  
+	  @EventHandler
+	  public void onSupplyItemUse(PlayerInteractEvent e) {
+	      Player p = e.getPlayer();
+	      ItemStack item = p.getItemInHand();
+
+	      if (item == null) return;
+
+	      if (isNamed(item, "Wind Stick")) {
+	          useWindStick(p);
+	      } else if (isNamed(item, "Spear")) {
+	          useSpear(p);
+	          consumeOne(p);
+	      } else if (isNamed(item, "Poison Rod")) {
+	    	  usePoisonRod(p);
+	      } else if (isNamed(item, "Ice Age")) {
+	          useIceAge(p);
+	          consumeOne(p);
+	      } else if (isNamed(item, "Moo Pal")) {
+	          spawnMooPal(p);
+	          consumeOne(p);
+	      } else if (isNamed(item, "Sniper Rifle")) {
+	          useSniperRifle(p);
+	      }
+	  }
+	  
+	  private void useWindStick(Player p) {
+		    UUID id = p.getUniqueId();
+		    int shots = windShots.getOrDefault(id, 6);
+
+		    if (shots <= 0) {
+		        windShots.remove(id);
+		        consumeOne(p);
+		        p.sendMessage(prefix + ChatColor.RED + "Wind Stick broke!");
+		        return;
+		    }
+		    windShots.put(id, shots - 1);
+
+		    Vector dir = p.getLocation().getDirection().normalize();
+		    Location center = p.getLocation().clone().add(dir.clone().multiply(2));
+
+		    for (double y = 0; y < 4; y += 0.35) {
+		        double radius = 0.5 + y * 0.25;
+		        double spin = y * 2.5;
+
+		        for (int i = 0; i < 3; i++) {
+		            double angle = spin + (i * Math.PI * 2 / 3);
+
+		            Location effectLoc = center.clone().add(Math.cos(angle) * radius,y,Math.sin(angle) * radius);
+
+		            p.getWorld().playEffect(effectLoc, Effect.CLOUD, 0);
+		            p.getWorld().playEffect(effectLoc, Effect.LARGE_SMOKE, 0);
+		        }
+		    }
+
+		    for (Entity ent : p.getNearbyEntities(7, 4, 7)) {
+		        if (!(ent instanceof LivingEntity)) continue;
+		        if (ent.equals(p)) continue;
+
+		        LivingEntity target = (LivingEntity) ent;
+
+		        target.setVelocity(dir.clone().multiply(1.8).setY(0.6));
+		        target.damage(3.0, p);
+		    }
+
+		    p.playSound(p.getLocation(), Sound.ENDERDRAGON_WINGS, 1.5f, 1.2f);
+
+		    if (shots - 1 <= 0) consumeOne(p);
+		}
+	  private void usePoisonRod(Player p) {
+		    UUID id = p.getUniqueId();
+		    int uses = knockbackUses.getOrDefault(id, 10);
+
+		    if (uses <= 0) {
+		        knockbackUses.remove(id);
+		        consumeOne(p);
+		        p.sendMessage(prefix + ChatColor.RED + "Poison Rod broke!");
+		        return;
+		    }
+
+		    knockbackUses.put(id, uses - 1);
+
+		    for (Entity ent : p.getNearbyEntities(5, 3, 5)) {
+		        if (!(ent instanceof LivingEntity)) continue;
+		        if (ent.equals(p)) continue;
+
+		        LivingEntity target = (LivingEntity) ent;
+
+		        target.damage(2.0, p);
+
+		        target.addPotionEffect(new PotionEffect(PotionEffectType.POISON,20 * 4,1));
+
+		        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW,20 * 2,1));
+
+		        target.getWorld().playEffect(target.getLocation(), Effect.MOBSPAWNER_FLAMES, 0);
+		    }
+
+		    p.playSound(p.getLocation(), Sound.BLAZE_BREATH, 1f, 1.2f);
+
+		    if (uses - 1 <= 0) consumeOne(p);
+		}
+	  private void useSpear(final Player p) {
+		    Location eye = p.getEyeLocation();
+		    Vector dir = eye.getDirection().normalize();
+
+		    final Item spear = p.getWorld().dropItem(
+		            eye.clone().add(dir),
+		            new ItemStack(Material.IRON_SPADE)
+		    );
+
+		    spear.setPickupDelay(Integer.MAX_VALUE);
+		    spear.setVelocity(dir.multiply(1.8));
+
+		    new BukkitRunnable() {
+		        int ticks = 0;
+
+		        public void run() {
+		            ticks++;
+
+		            if (!spear.isValid() || ticks > 60) {
+		                spear.remove();
+		                cancel();
+		                return;
+		            }
+
+		            for (Entity ent : spear.getNearbyEntities(1.3, 1.3, 1.3)) {
+		                if (!(ent instanceof LivingEntity)) continue;
+		                if (ent.equals(p)) continue;
+
+		                ((LivingEntity) ent).damage(10.0, p);
+		                ent.setVelocity(p.getLocation().getDirection().normalize().multiply(1.4).setY(0.4));
+
+		                spear.getWorld().playEffect(spear.getLocation(), Effect.CRIT, 0);
+		                spear.remove();
+		                cancel();
+		                return;
+		            }
+		        }
+		    }.runTaskTimer(plugin, 0L, 1L);
+		}
+	  private void useIceAge(Player p) {
+		    Location center = p.getLocation().getBlock().getLocation();
+		    activeIceCageCenters.add(center);
+
+		    List<Block> placed = new ArrayList<>();
+
+		    int radius = 2;
+		    int height = 3;
+		    for (int y = 0; y <= height; y++) {
+		        for (int x = -radius; x <= radius; x++) {
+		            for (int z = -radius; z <= radius; z++) {
+
+		                boolean wall = Math.abs(x) == radius || Math.abs(z) == radius;
+		                boolean roof = y == height;
+		                boolean floor = y == 0;
+
+		                if (!wall && !roof && !floor) continue;
+
+		                Block b = center.clone().add(x, y, z).getBlock();
+
+		                if (b.getType() == Material.AIR) {
+		                    b.setType(Material.PACKED_ICE);
+		                    placed.add(b);
+		                }
+		            }
+		        }
+		    }
+
+		    p.getWorld().playSound(center, Sound.GLASS, 2f, 0.6f);
+
+		    new BukkitRunnable() {
+		        int ticks = 0;
+
+		        public void run() {
+		            ticks++;
+
+		            for (Entity ent : center.getWorld().getNearbyEntities(center, 7, 6, 5)) {
+		                if (!(ent instanceof LivingEntity)) continue;
+		                if (ent instanceof Player) continue;
+
+		                LivingEntity mob = (LivingEntity) ent;
+
+		                mob.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 1000000, 255));
+
+		                mob.setMetadata("iceAgeFrozen", new FixedMetadataValue(plugin, true));
+
+		                center.getWorld().playEffect(mob.getLocation(), Effect.SNOW_SHOVEL, 0);
+		            }
+
+		            if (ticks >= 15) {
+		                for (Block b: placed) {
+		                    if (b.getType() == Material.PACKED_ICE) {
+		                        b.setType(Material.AIR);
+		                    }
+		                }
+
+		                for (int y = 0; y <= height; y++) {
+		                    for (int x = -radius - 1; x <= radius + 1; x++) {
+		                        for (int z = -radius - 1; z <= radius + 1; z++) {
+		                            Block b = center.clone().add(x, y, z).getBlock();
+
+		                            if (b.getType() == Material.PACKED_ICE) {
+		                                b.setType(Material.AIR);
+		                            }
+		                        }
+		                    }
+		                }
+
+		                activeIceCageCenters.remove(center);
+		                cancel();
+		            }
+		        }
+		    }.runTaskTimer(plugin, 0L, 10L);
+		}
+	  
+	  @EventHandler
+	  public void onFrozenMobDamage(EntityDamageByEntityEvent e) {
+	      if (!(e.getEntity() instanceof LivingEntity)) return;
+	      if (e.getEntity() instanceof Player) return;
+
+	      LivingEntity mob = (LivingEntity) e.getEntity();
+
+	      if (!mob.hasMetadata("iceAgeFrozen")) return;
+
+	      mob.damage(9999.0);
+	  }
+	  
+	  private void spawnMooPal(final Player p) {
+		    final MushroomCow cow = (MushroomCow) p.getWorld().spawnEntity(p.getLocation().clone().add(1, 0, 1), EntityType.MUSHROOM_COW);
+		    cow.setCustomName(ChatColor.RED + "Moo Pal");
+		    cow.setCustomNameVisible(true);
+		    cow.setMaxHealth(20.0);
+		    cow.setHealth(20.0);
+
+		    cow.getWorld().playSound(cow.getLocation(), Sound.COW_IDLE, 1f, 1.2f);
+
+		    new BukkitRunnable() {
+		        int ticks = 0;
+
+		        @Override
+		        public void run() {
+		            ticks += 10;
+
+		            if (!cow.isValid() || cow.isDead() || ticks >= 20 * 20) {
+		                if (cow.isValid()) {
+		                    cow.getWorld().playEffect(cow.getLocation(), Effect.HEART, 0);
+		                    cow.remove();
+		                }
+
+		                cancel();
+		                return;
+		            }
+
+		            for (Entity ent : cow.getNearbyEntities(8, 4, 8)) {
+		                if (!(ent instanceof Player)) continue;
+
+		                Player nearby = (Player) ent;
+
+		                nearby.addPotionEffect(new PotionEffect(PotionEffectType.INCREASE_DAMAGE,100,0));
+
+		                if (ticks % 40 == 0) {
+		                    nearby.playSound(nearby.getLocation(), Sound.COW_IDLE, 0.5f, 1.4f);
+		                }
+		            }
+
+		            cow.getWorld().playEffect(cow.getLocation().clone().add(0, 1.2, 0),Effect.HEART,0);
+		        }
+		    }.runTaskTimer(plugin, 0L, 10L);
+		}
+	  private void useSniperRifle(Player p) {
+		    UUID id = p.getUniqueId();
+		    int shots = sniperShots.getOrDefault(id, 6);
+
+		    if (shots <= 0) {
+		        sniperShots.remove(id);
+		        consumeOne(p);
+		        p.sendMessage(ChatColor.RED + "Sniper Rifle broke!");
+		        return;
+		    }
+
+		    sniperShots.put(id, shots - 1);
+
+		    Snowball bullet = p.launchProjectile(Snowball.class);
+		    bullet.setVelocity(p.getLocation().getDirection().normalize().multiply(3.0));
+		    bullet.setMetadata("sniperBullet", new FixedMetadataValue(plugin, p.getUniqueId().toString()));
+
+		    p.playSound(p.getLocation(), Sound.FIREWORK_BLAST, 1f, 1.4f);
+
+		    if (shots - 1 <= 0) consumeOne(p);
+		}
+	  
+	  @EventHandler
+	  public void onSniperHit(ProjectileHitEvent e) {
+	      if (!(e.getEntity() instanceof Snowball)) return;
+	      if (!e.getEntity().hasMetadata("sniperBullet")) return;
+
+	      Snowball snowball = (Snowball) e.getEntity();
+
+	      Location loc = snowball.getLocation();
+
+	      for (Entity ent : loc.getWorld().getNearbyEntities(loc, 1.5, 1.5, 1.5)) {
+	          if (!(ent instanceof LivingEntity)) continue;
+	          if (ent instanceof Player) continue;
+
+	          ((LivingEntity) ent).damage(14.0);
+	          loc.getWorld().playEffect(loc, Effect.CRIT, 0);
+	          break;
+	      }
+
+	      snowball.remove();
+	  }
+	  
+	  private void consumeOne(Player p) {
+		    ItemStack item = p.getItemInHand();
+
+		    if (item == null) return;
+
+		    if (item.getAmount() <= 1) {
+		        p.setItemInHand(null);
+		    } else {
+		        item.setAmount(item.getAmount() - 1);
+		    }
+
+		    p.updateInventory();
+		}
+
+	  @EventHandler
+	  public void onProxyHeal(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    if (e.getAction() != Action.RIGHT_CLICK_AIR) return;
+	    if (!isHolding(p, Material.STONE_AXE, "Proxy Heal")) return;
+	    World world = Bukkit.getWorld("Escort");
+	    UUID id = p.getUniqueId();
+	    if (isOnCooldown(id)) {
+	      int left = getSecondsLeft(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	      return;
+	    }
+	    startCooldown(id, 5, p);
+	    giveWorldRegen(world);
+	  }
+	  
+	  public void giveWorldRegen(World world) {
+	        int durationTicks = 3 * 20;
+	        int amplifier = 2;
+	        PotionEffect regenEffect = new PotionEffect(
+	            PotionEffectType.REGENERATION,
+	            durationTicks,
+	            amplifier
+	        );
+	        for (Player player: world.getPlayers()) {
+	            player.addPotionEffect(regenEffect);
+	        }
+	    }
+	  
+	  @EventHandler
+	  public void onItemHeal(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    Action action = e.getAction();
+	    if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
+	    if (!isHolding(p, Material.STONE_SWORD, "Heal Item")) return;
+	    UUID id = p.getUniqueId();
+	    if (isOnCooldown(id)) {
+	      int left = getSecondsLeft(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this") .sendToPlayer(p);
+	      return;
+	    }
+	    startCooldown(id, 3, p);
+	    Location spawnLoc = p.getEyeLocation().add(p.getEyeLocation().getDirection().multiply(1.5));
+        Item dropped = p.getWorld().dropItem(spawnLoc, new ItemStack(Material.GOLD_BLOCK, 1));
+        dropped.setPickupDelay(20);
+        dropped.setMetadata(META_KEY, new FixedMetadataValue(plugin, true));
+        Vector velocity = p.getEyeLocation().getDirection().multiply(1.2);
+        dropped.setVelocity(velocity);
+	  }
+	  
+	  @EventHandler
+	    public void onEntityPickupItem(PlayerPickupItemEvent event) {
+	        Item item = event.getItem();
+	        if (item.hasMetadata(META_KEY)) {
+	            Player player = event.getPlayer();
+	            double newHealth = Math.min(player.getMaxHealth(), player.getHealth() + 12);
+	            player.setHealth(newHealth);
+	            event.setCancelled(true);
+	            item.remove();
+	        }
+	    }
+	  
+	  @EventHandler
+	  public void onFireball(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    if (e.getAction() != Action.RIGHT_CLICK_AIR) return;
+	    if (!isHolding(p, Material.IRON_AXE, "Fireball")) return;
+	    UUID id = p.getUniqueId();
+	    if (isOnCooldown(id)) {
+	      int left = getSecondsLeft(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	      return;
+	    }
+	    startCooldown(id, 2, p);
+	    Fireball fb = p.launchProjectile(Fireball.class);
+        fb.setYield(0);
+        fb.setIsIncendiary(false);
+	  }
+	  
+	  @EventHandler
+	  public void onWizardExplosion(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    if (e.getAction() != Action.RIGHT_CLICK_AIR) return;
+	    if (!isHolding(p, Material.IRON_SWORD, "Wizard Blow")) return;
+
+	    UUID id = p.getUniqueId();
+	    if (isOnCooldown(id)) {
+	      int left = getSecondsLeft(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	      return;
+	    }
+	    startCooldown(id, 3, p);
+	    smokeBomb(p.getLocation(), 15, 6, 5);
+	  }
+	 
+	  public static void smokeBomb(Location center, double radius, double knockbackStrength, double damage) {
+	        World world = center.getWorld();
+	        if (world == null) return;
+
+	        world.playEffect(center, Effect.EXPLOSION_LARGE, 0);
+	        world.playSound(center, Sound.EXPLODE, 1f, 1f);
+
+	        for (int i = 0; i < 20; i++) {
+	            double offsetX = (Math.random() - 0.5) * 2 * radius;
+	            double offsetY = Math.random() * radius;
+	            double offsetZ = (Math.random() - 0.5) * 2 * radius;
+	            Location smokeLoc = center.clone().add(offsetX, offsetY, offsetZ);
+	            world.playEffect(smokeLoc, Effect.FLAME, 4);
+	        }
+
+	        for (Player player: world.getPlayers()) {
+	            if (player.getLocation().distance(center) <= radius) {
+	                Vector dir = player.getLocation().toVector().subtract(center.toVector()).normalize().multiply(knockbackStrength);
+	                dir.setY(1);
+	                player.setVelocity(dir);
+	            }
+	        }
+
+	        for (Entity e : world.getNearbyEntities(center, radius, radius, radius)) {
+	        	if (e instanceof LivingEntity 
+	        		    && !(e instanceof Player) 
+	        		    && !(e instanceof Villager)
+	        		    && !(e instanceof Wolf)) {
+	        		LivingEntity mob = (LivingEntity)e;
+	                Vector dir = mob.getLocation().toVector().subtract(center.toVector()).normalize().multiply(knockbackStrength);
+	                dir.setY(0.5);
+	                mob.setVelocity(dir);
+	                mob.damage(damage);
+	            }
+	        }
+	    }
+	
+	  @EventHandler
+	  public void onBarbSlam(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    if (e.getAction() != Action.RIGHT_CLICK_AIR && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+	    if (!isHolding(p, Material.DIAMOND_AXE, "Slam")) return;
+	    UUID id = p.getUniqueId();
+	    if (isOnCooldown(id)) {
+	      int left = getSecondsLeft(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	      return;
+	    }
+	    startCooldown(id, 5, p);
+	    castRangedSeismicSlam(p);
+	  }
+	  
+	  public void castRangedSeismicSlam(Player caster) {
+		    Location start = caster.getLocation().clone().add(0, 0.2, 0);
+		    Vector dir = caster.getLocation().getDirection().normalize();
+
+		    dir.setY(0);
+		    dir.normalize();
+
+		    seismicPathSlam(caster, start, dir, 16.0, 3.5, 1.4, 6.0, plugin);
+		}
+	  
+	  public void seismicPathSlam(final Player caster,final Location start,final Vector direction,final double range,final double width,final double force,final double damage,final Main plugin) {
+		    final double step = 1.0;
+		    final int maxTicks = (int) Math.ceil(range / step);
+		    final Set<UUID> hit = new HashSet<>();
+
+		    new BukkitRunnable() {
+		        int tick = 0;
+
+		        @SuppressWarnings("deprecation")
+		        @Override
+		        public void run() {
+		            if (tick > maxTicks) {
+		                cancel();
+		                return;
+		            }
+
+		            World world = start.getWorld();
+
+		            double distance = tick * step;
+
+		            Location center = start.clone().add(direction.clone().multiply(distance));
+
+		            center.setY(world.getHighestBlockYAt(center) + 1);
+
+		            Vector side = new Vector(-direction.getZ(), 0, direction.getX()).normalize();
+
+		            for (double offset = -width; offset <= width; offset += 0.75) {
+		                Location crack = center.clone().add(side.clone().multiply(offset));
+		                crack.setY(world.getHighestBlockYAt(crack) + 0.05);
+
+		                world.playEffect(crack,Effect.STEP_SOUND, Material.DIRT.getId());
+
+		                if (tick % 2 == 0) {
+		                    world.playEffect(crack.clone().add(0, 1.0, 0), Effect.LARGE_SMOKE, 0);
+		                }
+		            }
+
+		            for (Entity entity : world.getNearbyEntities(center, width + 1.5, 4, width + 1.5)) {
+		                if (!(entity instanceof LivingEntity)) continue;
+		                if (entity.equals(caster)) continue;
+		                if (entity instanceof Villager) continue;
+		                if (hit.contains(entity.getUniqueId())) continue;
+
+		                LivingEntity target = (LivingEntity) entity;
+
+		                Vector kb = target.getLocation().toVector().subtract(start.toVector()).normalize().multiply(force);
+		                kb.setY(1.3);
+		                target.setVelocity(kb);
+		                target.setFallDistance(0f);
+		                target.damage(damage, caster);
+		                hit.add(entity.getUniqueId());
+		                world.playEffect(target.getLocation(), Effect.SPELL, 0);
+		                world.playSound(target.getLocation(), Sound.STEP_GRAVEL, 1f, 0.8f);
+		            }
+
+		            tick++;
+		        }
+		    }.runTaskTimer(plugin, 0L, 2L);
+		}
+
+	  
+	  private void smokeScreen(final Player caster, final Location center) {
+		    new BukkitRunnable() {
+		        int ticks = 0;
+
+		        @Override
+		        public void run() {
+		            ticks++;
+
+		            if (ticks > 6) {
+		                cancel();
+		                return;
+		            }
+
+		            World w = center.getWorld();
+
+		            for (int i = 0; i < 20; i++) {
+		                Location smoke = center.clone().add(ThreadLocalRandom.current().nextDouble(-2.5, 2.5),ThreadLocalRandom.current().nextDouble(0.2, 2.5), ThreadLocalRandom.current().nextDouble(-2.5, 2.5));
+		                w.playEffect(smoke, Effect.LARGE_SMOKE, 0);
+		            }
+
+		            for (Entity ent : w.getNearbyEntities(center, 3.5, 3, 3.5)) {
+		                if (!(ent instanceof LivingEntity)) continue;
+		                if (ent instanceof Player) continue;
+		                LivingEntity mob = (LivingEntity) ent;
+		                mob.damage(1.0, caster);
+		                mob.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 255));
+		                mob.setVelocity(new Vector(0, 0, 0));
+		            }
+		        }
+		    }.runTaskTimer(plugin, 0L, 5L);
+		}
+  
+	  @EventHandler
+	  public void onWolf(PlayerInteractEvent e) {
+	    Player p = e.getPlayer();
+	    if (e.getAction() != Action.RIGHT_CLICK_AIR && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+	    if (!isHolding(p, Material.DIAMOND_SWORD, "Rage")) return;
+	    UUID id = p.getUniqueId();
+	    if (isOnCooldown(id)) {
+	      int left = getSecondsLeft(id);
+	      new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	      return;
+	    }
+	    startCooldown(id, 3, p);
+	    p.addPotionEffect(new PotionEffect(PotionEffectType.FAST_DIGGING, 120, 2));
+	  }
+	  
+	  @EventHandler
+	  public void onSmokeScreen(PlayerInteractEvent e) {
+	      Player p = e.getPlayer();
+
+	      if (e.getAction() != Action.RIGHT_CLICK_AIR && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+	      if (!isHolding(p, Material.IRON_SPADE, "Bat")) return;
+
+	      e.setCancelled(true);
+
+	      UUID id = p.getUniqueId();
+
+	      if (isOnCooldown(id)) {
+	          int left = getSecondsLeft(id);
+	          new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	          return;
+	      }
+
+	      startCooldown(id, 5, p);
+
+	      Location center = p.getLocation().clone().add(p.getLocation().getDirection().normalize().multiply(3));
+	      smokeScreen(p, center);
+	  }
+	  
+	  
+	  @EventHandler
+	  public void onDummy(PlayerInteractEvent e) {
+	      Player p = e.getPlayer();
+
+	      if (e.getAction() != Action.RIGHT_CLICK_AIR && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+	      if (!isHolding(p, Material.CLAY_BALL, "Dummy")) return;
+	      e.setCancelled(true);
+	      UUID id = p.getUniqueId();
+
+	      if (isOnCooldown(id)) {
+	          int left = getSecondsLeft(id);
+	          new ActionBar(prefix + ChatColor.GRAY + "You have " + ChatColor.BOLD + left + ChatColor.GRAY + " seconds before you can use this").sendToPlayer(p);
+	          return;
+	      }
+
+	      startCooldown(id, 6, p);
+
+	      spawnGestureDummy(p);
+	  }
+	  
+	  private void spawnGestureDummy(final Player p) {
+		    Location loc = p.getLocation().clone().add(p.getLocation().getDirection().normalize().multiply(2));
+
+		    final ArmorStand dummy = (ArmorStand) p.getWorld().spawnEntity(loc, EntityType.ARMOR_STAND);
+
+		    dummy.setGravity(false);
+		    dummy.setVisible(false);
+		    dummy.setBasePlate(false);
+		    dummy.setArms(false);
+		    dummy.setCustomName(ChatColor.GRAY + "Dummy");
+		    dummy.setCustomNameVisible(true);
+		    dummy.setHelmet(new ItemStack(Material.SKULL_ITEM, 1, (short) 3));
+
+		    Vector back = p.getLocation().getDirection().normalize().multiply(-1.4);
+		    back.setY(0.35);
+		    p.setVelocity(back);
+
+		    p.playSound(p.getLocation(), Sound.CHICKEN_EGG_POP, 1f, 1.2f);
+
+		    new BukkitRunnable() {
+		        int ticks = 0;
+
+		        @Override
+		        public void run() {
+		            ticks++;
+
+		            if (!dummy.isValid() || ticks > 10) {
+		            	if (dummy.isValid()) {
+		                    dummy.getWorld().playEffect(dummy.getLocation(), Effect.MAGIC_CRIT, 0);
+		                    dummy.remove();
+		                }
+
+		                cancel();
+		                return;
+		            }
+
+		            for (Entity ent : dummy.getNearbyEntities(12, 6, 12)) {
+		                if (!(ent instanceof Creature)) continue;
+
+		                Creature mob = (Creature) ent;
+
+		                if (mob instanceof Wolf) continue;
+		                if (mob instanceof Villager) continue;
+
+		                mob.setTarget(dummy);
+		            }
+		            dummy.getWorld().playEffect(dummy.getLocation().clone().add(0, 1, 0), Effect.COLOURED_DUST, 0);
+		        }
+		    }.runTaskTimer(plugin, 0L, 10L);
+		}
+	  
+	  private boolean isHolding(Player p, Material mat, String displayNameSuffix) {
+	    ItemStack hand = p.getInventory().getItemInHand();
+	    if (hand == null || hand.getType() != mat) return false;
+	    if (!hand.hasItemMeta()) return false;
+	    String name = hand.getItemMeta().getDisplayName();
+	    return ChatColor.stripColor(name).endsWith(displayNameSuffix);
+	  }
+}
