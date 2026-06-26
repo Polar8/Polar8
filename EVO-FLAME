@@ -1,0 +1,50 @@
+### Evolved Flame Particle ###
+
+  public void createHelix(Player player) {
+          Location loc = player.getLocation();
+          int radius = 2;
+          for(double y = 0; y <= 50; y+=0.05) {
+              double x = radius * Math.cos(y);
+              double z = radius * Math.sin(y);
+              PacketPlayOutWorldParticles packet = new PacketPlayOutWorldParticles(EnumParticle.FLAME,true, (float) (loc.getX() + x), (float) (loc.getY() + y), (float) (loc.getZ() + z), 0, 0, 0, 0, 1);
+              for(Player online : Bukkit.getOnlinePlayers()) {
+                  ((CraftPlayer)online).getHandle().playerConnection.sendPacket(packet);
+              }
+          }}
+
+ public void startevoFlame() {
+		  int id = Bukkit.getScheduler().scheduleSyncRepeatingTask(
+			        Main.getPlugin(Main.class),
+			        new Runnable() {
+			            double t = 0;
+			            public void run() {
+			            	Location loc = player.getLocation();
+			                for (int i = 0; i < 360; i += 5) {
+			                    Location flameLoc = loc.clone();
+			                    flameLoc.setZ(flameLoc.getZ() + Math.cos(i) * 2);
+			                    flameLoc.setX(flameLoc.getX() + Math.sin(i) * 2);
+			                    flameLoc.getWorld().playEffect(flameLoc, Effect.FLAME, 0);
+			                }
+			                t += 0.2;
+			                if (t > 20) t = 0;
+		                new BukkitRunnable() {
+		                    @Override
+		                    public void run() {
+		                    	Location loc = player.getLocation().add(0, 1, 0);
+				                for (int i = 0; i < 360; i += 20) {
+				                    double angle = Math.toRadians(i);
+				                    double x = Math.cos(angle) * 1.5;
+				                    double y = 0.2 * t;
+				                    double z = Math.sin(angle) * 1.5;
+				                    Location flameLoc = loc.clone().add(x, y, z);
+				                    flameLoc.getWorld().playEffect(flameLoc, Effect.FLAME, 0);
+				                    createHelix(player);
+		                        }
+		                    }
+		                }.runTaskLater(Main.getPlugin(Main.class), 40L);
+		                }
+		        },
+		        0L, 40L
+		    );
+		    setID(id); 
+		}
