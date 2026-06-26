@@ -1,0 +1,1178 @@
+### Tower Clash Minigame File ####
+
+package me.polar8.nmc.games.listeners;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Color;
+import org.bukkit.Effect;
+import org.bukkit.FireworkEffect;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.entity.Blaze;
+import org.bukkit.entity.Creature;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Firework;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Slime;
+import org.bukkit.entity.Snowball;
+import org.bukkit.entity.Snowman;
+import org.bukkit.entity.Villager;
+import org.bukkit.entity.Zombie;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockFormEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.server.PluginDisableEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.FireworkMeta;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.metadata.MetadataValue;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
+
+import me.polar8.nmc.ActionBar;
+import me.polar8.nmc.Main;
+import me.polar8.nmc.cosmetics.CosList;
+import me.polar8.nmc.cosmetics.CosmeticManager;
+import me.polar8.nmc.essentials.Coins;
+import me.polar8.nmc.games.BoardManager;
+import me.polar8.nmc.games.GameManager;
+import me.polar8.nmc.leveling.LevelManager;
+import me.polar8.nmc.leveling.Levels;
+import me.polar8.nmc.leveling.XpHandler;
+import me.polar8.nmc.ranking.Rank;
+import me.polar8.nmc.ranking.RankManager;
+
+public class TowerClash implements Listener {
+    final TeamData redTeam;
+    final TeamData blueTeam;
+    private final GameManager game;
+    private Main plugin;
+    private CosmeticManager cmanager;
+    private BukkitTask tcBoardTask;
+    private BukkitTask juiceTask;
+    private BoardManager boardm;
+    private int tickCounter = 0;
+    private int redGolems = 2;
+    private int blueGolems = 2;
+    private final World world;
+    private RankManager rankManager;
+    private LevelManager level;
+    private final Location redGolemSpawn1;
+    private final Location redGolemSpawn2;
+    private final Location blueGolemSpawn1;
+    private final Location blueGolemSpawn2;
+    private final Location redPlayerSpawn;
+    private final Location bluePlayerSpawn;
+    private BukkitTask blazeWaterTask;
+    private boolean overtimeStarted = false;
+    private int towerClashTimeLeft = 300;
+    private final Random random = new Random();
+    private static final String[] KIT_NAMES = {"Bones", "Zombies", "Civilian", "Flame"};
+    public final Map<UUID, Integer> juiceMap = new HashMap<>();
+    private final String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Games] ";
+    private static final String GUI_TITLE = ChatColor.GOLD + "Tower Clash Kit";
+    private final Map<UUID, TeamData> playerTeams = new HashMap<>();
+    private final Map<UUID, String> TCKits = new HashMap<>();
+    private final Map<UUID, String> lastBars = new HashMap<>();
+    private final List<TeamData> teams = new ArrayList<>();
+    private int nextTeamIndex = 0;
+    public TowerClash(TeamData red, TeamData blue, Main plugin, World world, GameManager game, RankManager rankManager, LevelManager level, CosmeticManager cmanager, BoardManager boardm) {
+    	 this.redTeam = red;
+         this.blueTeam = blue;
+         this.world = world;
+         this.plugin = plugin;
+         this.game = game;
+         this.rankManager = rankManager;
+         this.level = level;
+         this.cmanager = cmanager;
+         this.boardm = boardm;
+         this.redGolemSpawn1 = new Location(world, 140, 89, -35);
+         this.redGolemSpawn2 = new Location(world, 141, 89, -68);
+         this.blueGolemSpawn1 = new Location(world, 178, 89, -67);
+         this.blueGolemSpawn2 = new Location(world, 178, 89, -35);  
+         this.redPlayerSpawn  = new Location(world, 140, 87, -52);
+         this.bluePlayerSpawn = new Location(world, 178, 87, -52);
+         redTeam.setPlayerSpawn(redPlayerSpawn);
+         blueTeam.setPlayerSpawn(bluePlayerSpawn);
+         teams.add(redTeam);
+         teams.add(blueTeam);
+    }
+    
+    private String formatTime(int seconds) {
+        int min = seconds / 60;
+        int sec = seconds % 60;
+        return String.format("%d:%02d", min, sec);
+    }
+    
+    private void removeOvertimeZombies() {
+        World w = Bukkit.getWorld("TowerClash");
+        if (w == null) return;
+
+        for (Zombie z : w.getEntitiesByClass(Zombie.class)) {
+            if (z.hasMetadata("overtimeZombie")) {
+                z.remove();
+            }
+        }
+    }
+
+    private String getJuiceMultiplierText() {
+        int elapsed = 300 - towerClashTimeLeft;
+
+        if (elapsed >= 300) return "x4";
+        if (elapsed >= 120) return "x2";
+        return "x1";
+    }
+
+    private int getJuiceGainAmount() {
+        int elapsed = 300 - towerClashTimeLeft;
+
+        if (elapsed >= 300) return 4;
+        if (elapsed >= 120) return 2;
+        return 1;
+    }
+
+    private void startBlazeWaterTask() {
+        if (blazeWaterTask != null) {
+            blazeWaterTask.cancel();
+        }
+
+        blazeWaterTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!isTCRunning()) {
+                    cancel();
+                    blazeWaterTask = null;
+                    return;
+                }
+
+                World w = Bukkit.getWorld("TowerClash");
+                if (w == null) return;
+
+                for (Blaze blaze : w.getEntitiesByClass(Blaze.class)) {
+                    Block block = blaze.getLocation().getBlock();
+
+                    if (block.getType() == Material.WATER
+                            || block.getType() == Material.STATIONARY_WATER) {
+
+                        blaze.damage(10.0);
+
+                        Location up = blaze.getLocation().clone().add(0, 3, 0);
+                        blaze.teleport(up);
+                        blaze.setVelocity(new Vector(0, 0.2, 0));
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 10L);
+    }
+    
+    public boolean consumeJuice(Player p, int cost) {
+        UUID id = p.getUniqueId();
+        int juice = juiceMap.getOrDefault(id, 0);
+        if (juice < cost) {
+            p.sendMessage(prefix + ChatColor.RED + "Not enough juice you need " + ChatColor.BOLD + cost + "");
+            p.playSound(p.getLocation(), Sound.SLIME_ATTACK, 2, 2);
+            return false;
+        }
+        juiceMap.put(id, juice - cost);
+        return true;
+    }
+    
+    @EventHandler
+    public void onTowerClashSnowForm(BlockFormEvent e) {
+        if (!isTCRunning()) return;
+        if (e.getNewState().getType() == Material.SNOW) {
+            e.setCancelled(true);
+        }
+    }
+    
+    @EventHandler
+    public void onPlayerDamageGolem(EntityDamageByEntityEvent e) {
+        if (!isTCRunning()) return;
+        if (!(e.getDamager() instanceof Player)) return;
+        if (!(e.getEntity() instanceof Snowman)) return; 
+        e.setCancelled(true);
+    }
+    
+    @EventHandler
+    public void onVillagerTrade(PlayerInteractEntityEvent e) {
+        if (!(e.getRightClicked() instanceof Villager)) return;
+        if (!isTCRunning()) return; 
+        e.setCancelled(true);
+    }
+    
+    @EventHandler
+    public void onPlayerHitTowerClashMob(EntityDamageByEntityEvent e) {
+        if (!isTCRunning()) return;
+        if (!(e.getDamager() instanceof Player)) return;
+        if (e.getEntity() instanceof Player) return;
+        e.setCancelled(true);
+    }
+    
+    public List<TeamData> getTeams() {
+        return Collections.unmodifiableList(teams);
+    }
+    
+    @EventHandler
+    public void onPlayerDamage(EntityDamageEvent e) {
+    	 if (!isTCRunning()) return; 
+        if (e.getEntity() instanceof Player) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerVoidFall(PlayerMoveEvent e) {
+    	if (!isTCRunning()) return; 
+        Player player = e.getPlayer();
+        Location to = e.getTo();
+        if (to != null && to.getY() < 0) {
+            World tcWorld = plugin.getServer().getWorld("TowerClash");
+            if (tcWorld == null) return;
+            double x = 167;
+            double y = 86;
+            double z = -50;
+            Location safeCoords = new Location(tcWorld, x, y, z);
+            player.teleport(safeCoords);
+        }
+    }
+    
+    public void TCStart() {
+        String current = game.getCurrentGame();
+        if (current == null
+                || !ChatColor.stripColor(current).equalsIgnoreCase("Tower Clash")) {
+            return;
+        }
+        juiceMap.clear();
+        lastBars.clear();
+        overtimeStarted = false;
+        tickCounter = 0;
+        towerClashTimeLeft = 300;
+        startAntiFenceWaterTask();
+        removeOvertimeZombies();
+        removeAllVillagersAndSlimes();
+        removeAllGolems();
+        startBlazeWaterTask();
+        World world = Bukkit.getWorld("TowerClash");
+        if (world == null) return;
+        Location redSpawn = new Location(world, 141, 87, -52);
+        Location blueSpawn = new Location(world, 178, 87, -51);
+        for (Player p: Bukkit.getOnlinePlayers()) {
+        	clearArmorAndEffects(p);
+        	p.performCommand("map");
+            if (!playerTeams.containsKey(p.getUniqueId())) {
+                assignPlayer(p);
+            }
+        }
+
+        game.setInGame(true);
+        startGame();
+
+        for (TeamData team: getTeams()) {
+            for (UUID uuid: team.getMemberUUIDs()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p == null || !p.isOnline()) continue;
+                String kit = TCKits.getOrDefault(uuid, "Bones");
+                TCKits.put(uuid, kit);
+                Location spawn = team.getName().equalsIgnoreCase("Red") ? redSpawn : blueSpawn;
+                p.getInventory().clear();
+                p.teleport(spawn);
+                initPlayer(p);
+                boardm.setTowerClashBoard(p, kit, formatTime(towerClashTimeLeft), getJuiceMultiplierText());
+
+              new BukkitRunnable() {
+                @Override
+                public void run() {
+                  team.equipTeamArmor(p);
+                    }
+                }.runTaskLater(plugin, 1L);
+            }
+        }
+
+        String announce = prefix + ChatColor.GREEN + "Tower Clash has begun, defend your towers!";
+
+        for (Player p: Bukkit.getOnlinePlayers()) {
+            new ActionBar(announce).sendToPlayer(p);
+            p.setGameMode(GameMode.SURVIVAL);
+            p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 1), true);
+        }
+
+        startTowerClashTimer();
+        startJuiceTask();
+    }
+    
+    private void clearArmorAndEffects(Player player) {
+    	player.getInventory().setHelmet(new ItemStack(Material.AIR));
+        player.getInventory().setChestplate(new ItemStack(Material.AIR));
+        player.getInventory().setLeggings(new ItemStack(Material.AIR));
+        player.getInventory().setBoots(new ItemStack(Material.AIR));
+      for (PotionEffect effect: player.getActivePotionEffects()) {
+          player.removePotionEffect(effect.getType());
+      }
+  }
+
+	private void startJuiceTask() {
+        if (juiceTask != null) {
+            juiceTask.cancel();
+        }
+
+        juiceTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!isTCRunning()) {
+                    cancel();
+                    juiceTask = null;
+                    return;
+                }
+
+                tickCounter++;
+
+                for (TeamData team: getTeams()) {
+                    for (UUID uuid: team.getMemberUUIDs()) {
+                        Player p = Bukkit.getPlayer(uuid);
+                        if (p == null || !p.isOnline()) continue;
+
+                        int currentJuice = juiceMap.getOrDefault(uuid, 0);
+
+                        if (tickCounter % 8 == 0) {
+                            currentJuice = Math.min(currentJuice + getJuiceGainAmount(), 10);
+                            juiceMap.put(uuid, currentJuice);
+                        }
+                        int filled = currentJuice;
+                        int empty = 10 - filled;
+                        String barText = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "Juice: " + ChatColor.DARK_PURPLE + repeat("█", filled) + ChatColor.DARK_GRAY + repeat("-", empty) + ChatColor.GRAY + " (" + currentJuice + "/10)";
+                        String last = lastBars.get(uuid);
+                        if (!barText.equals(last)) {
+                            new ActionBar(barText).sendToPlayer(p);
+                            lastBars.put(uuid, barText);
+                        } else {
+                            new ActionBar(last).sendToPlayer(p);
+                        }
+                    }
+                }
+
+                if (tickCounter >= 1000) tickCounter = 0;
+            }
+        }.runTaskTimer(plugin, 0L, 10L);
+    }
+    	
+		private boolean isSpruceWood(Block block) {
+    	  return block.getType() == Material.WOOD && block.getData() == (byte) 1;
+    	}
+    	
+    	private String repeat(String str, int times) {
+    	    StringBuilder builder = new StringBuilder();
+    	    for (int i = 0; i < times; i++) {
+    	        builder.append(str);
+    	    }
+    	    return builder.toString();
+    	}
+    	
+    	private void startTowerClashTimer() {
+    	    if (tcBoardTask != null) {
+    	        tcBoardTask.cancel();
+    	    }
+
+    	    tcBoardTask = new BukkitRunnable() { 
+				@Override
+    	        public void run() {
+    	            if (!isTCRunning()) {
+    	                cancel();
+    	                tcBoardTask = null;
+    	                return;
+    	            }
+    	            
+    	            towerClashTimeLeft--;
+    	            int elapsed = 300 - towerClashTimeLeft;
+    	            if (elapsed == 120) {
+
+    	                for (Player p: Bukkit.getOnlinePlayers()) {
+    	                    p.sendTitle(ChatColor.LIGHT_PURPLE + "Double Juice!", ChatColor.GREEN + "Sounds fun!");
+    	                    p.playSound(p.getLocation(), Sound.PORTAL_TRAVEL, 1f, 1.2f);
+    	                }
+    	            }
+    	            if (!overtimeStarted && elapsed >= 300) {
+    	            	for (Player p: Bukkit.getOnlinePlayers()) {
+    	            	    p.sendTitle( ChatColor.LIGHT_PURPLE + "4x Juice!", ChatColor.DARK_RED + "Uhh... this is crazy.");
+    	            	    p.playSound(p.getLocation(), Sound.PORTAL_TRAVEL, 1f, 1f);
+    	            	}
+    	                startOvertime();
+    	            }
+    	            for (TeamData team: getTeams()) {
+    	                for (UUID uuid: team.getMemberUUIDs()) {
+    	                    Player p = Bukkit.getPlayer(uuid);
+    	                    if (p == null || !p.isOnline()) continue;
+    	                    String kit = TCKits.getOrDefault(uuid, "Bones");
+    	                    boardm.setTowerClashBoard(p, kit, formatTime(towerClashTimeLeft), getJuiceMultiplierText());
+    	                }
+    	            }
+
+    	            if (towerClashTimeLeft <= 0) {
+    	                cancel();
+    	                tcBoardTask = null;
+    	            }
+    	        }
+    	    }.runTaskTimer(plugin, 20L, 20L);
+    	}
+    	
+    	@SuppressWarnings("deprecation")
+		private boolean isSmoothSandstone(Block block) {
+    	    return block.getType() == Material.SANDSTONE && block.getData() == (byte) 2;
+    	}
+
+    	private boolean isWater(Material material) {
+    	    return material == Material.WATER || material == Material.STATIONARY_WATER;
+    	}
+    	
+    	private boolean isInWater(Player player) {
+    	    Location loc = player.getLocation();
+    	    Block below = loc.clone().subtract(0, 1, 0).getBlock();
+    	    Block feet = loc.getBlock();
+    	    Block head = player.getEyeLocation().getBlock();
+    	    Block aboveHead = loc.clone().add(0, 1, 0).getBlock();
+    	    return isWater(below.getType()) || isWater(feet.getType()) ||
+    	           isWater(head.getType()) || isWater(aboveHead.getType());
+    	}
+    	private boolean isWoodFence(Material material) {
+    	    return material.name().endsWith("_FENCE") && !material.name().contains("NETHER");
+    	}
+    	
+    	
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityTarget(EntityTargetLivingEntityEvent e) {
+        if (!isTCRunning()) return;
+
+        Entity entity = e.getEntity();
+        LivingEntity target = e.getTarget();
+        if (target == null) return;
+        if (entity.hasMetadata("goletarget")) {
+            if (!(target instanceof Snowman
+                  && ((Snowman)target).getCustomName().endsWith("Golem"))) {
+                e.setCancelled(true);
+            }
+            return;
+        }
+        
+        if (target instanceof Player) {
+            e.setCancelled(true);
+            return;
+        }
+
+        
+        if (!(entity instanceof Creature) || !entity.hasMetadata("team")) {
+            return;
+        }
+        if (!target.hasMetadata("team")) {
+            e.setCancelled(true);
+            return;
+        }
+
+        
+        String teamEnt = entity.getMetadata("team").stream().filter(md -> md.getOwningPlugin() == plugin).findFirst().map(md -> md.asString()).orElse("");
+        String teamTgt = target.getMetadata("team").stream().filter(md -> md.getOwningPlugin() == plugin).findFirst().map(md -> md.asString()).orElse("");
+        if (teamEnt.equals(teamTgt)) {
+            e.setCancelled(true);
+        }
+    }
+    
+    private Location getTeamSpawn(Player player) {
+        TeamData team = playerTeams.get(player.getUniqueId());
+        if (team == null) return null;
+
+        World world = Bukkit.getWorld("TowerClash");
+
+        if (team == redTeam) {
+            return new Location(world, 141, 87, -52);
+        } else if (team == blueTeam) {
+            return new Location(world, 178, 87, -51);
+        }
+
+        return null;
+    }
+    
+    private void startOvertime() {
+        if (overtimeStarted) return;
+        overtimeStarted = true;
+
+        Bukkit.broadcastMessage(prefix + ChatColor.RED
+                + "Overtime! Warrior Zombies have entered the battlefield!");
+
+        World w = Bukkit.getWorld("TowerClash");
+        if (w == null) return;
+
+        for (int i = 0; i < 5; i++) {
+            Location spawn = new Location(w, 140 + random.nextInt(40), 87, -70 + random.nextInt(40));
+            Zombie z = (Zombie) w.spawnEntity(spawn, EntityType.ZOMBIE);
+            z.setMetadata("overtimeZombie", new FixedMetadataValue(plugin, true));
+            z.setMetadata("team", new FixedMetadataValue(plugin, "Overtime"));
+            z.setRemoveWhenFarAway(false);
+            z.getEquipment().setHelmet(new ItemStack(Material.IRON_HELMET));
+            z.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
+            z.getEquipment().setLeggings(new ItemStack(Material.IRON_LEGGINGS));
+            z.getEquipment().setBoots(new ItemStack(Material.IRON_BOOTS));
+            z.getEquipment().setItemInHand(new ItemStack(Material.IRON_SWORD));
+            z.setMaxHealth(30.0);
+            z.setHealth(30.0);
+            applyOvertimeZombieAI(z);
+
+        }
+    }
+    
+    @EventHandler
+    public void onOvertimeZombieHitPlayer(EntityDamageByEntityEvent e) {
+        if (!(e.getDamager() instanceof Zombie)) return;
+        if (e.getDamager().hasMetadata("overtimeZombie")
+                && e.getEntity() instanceof Player) {
+            e.setCancelled(true);
+        }
+    }
+    
+    private void applyOvertimeZombieAI(final Zombie zombie) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!isTCRunning() || zombie == null || !zombie.isValid() || zombie.isDead()) {
+                    cancel();
+                    return;
+                }
+
+                LivingEntity target = getNearestTowerClashMob(zombie.getLocation(), 25);
+
+                if (target == null) return;
+
+                Vector dir = target.getLocation().toVector()
+                        .subtract(zombie.getLocation().toVector());
+
+                dir.setY(0);
+
+                if (dir.lengthSquared() > 0) {
+                    zombie.setVelocity(dir.normalize().multiply(0.28));
+                }
+
+                if (zombie.getLocation().distanceSquared(target.getLocation()) <= 2.0 * 2.0) {
+                    target.damage(3.0, zombie);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 10L);
+    }
+    
+    private LivingEntity getNearestTowerClashMob(Location from, double range) {
+        LivingEntity closest = null;
+        double best = range * range;
+
+        for (Entity e : from.getWorld().getNearbyEntities(from, range, range, range)) {
+            if (!(e instanceof LivingEntity)) continue;
+            if (e instanceof Player) continue;
+            if (e instanceof Zombie) continue;
+            if (e.hasMetadata("overtimeZombie")) continue;
+
+            if (!e.hasMetadata("team")) continue;
+
+            double dist = e.getLocation().distanceSquared(from);
+
+            if (dist < best) {
+                best = dist;
+                closest = (LivingEntity) e;
+            }
+        }
+
+        return closest;
+    }
+    
+    
+    private BukkitRunnable antiFenceWaterTask;
+
+    public void startAntiFenceWaterTask() {
+        this.antiFenceWaterTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player player: Bukkit.getOnlinePlayers()) {
+                    Location loc = player.getLocation();
+                    Block blockBelow = loc.clone().subtract(0, 1, 0).getBlock();
+                    if (isInWater(player) ||
+                        isWoodFence(blockBelow.getType()) ||
+                        isSmoothSandstone(blockBelow) ||
+                        isSpruceWood(blockBelow)) {
+
+                        Location targetSpawn = getTeamSpawn(player);
+
+                        if (targetSpawn != null) {
+                            Vector direction = targetSpawn.toVector().subtract(loc.toVector()).setY(0).normalize().multiply(1.5);
+                            direction.setY(0.3);
+                            player.setVelocity(direction);
+                        }
+                    }
+                }
+            }
+        };
+        this.antiFenceWaterTask.runTaskTimer(this.plugin, 0L, 1L);
+    }
+
+    public void stopAntiFenceWaterTask() {
+        if (this.antiFenceWaterTask != null) {
+            this.antiFenceWaterTask.cancel();
+            this.antiFenceWaterTask = null;
+        }
+    }
+
+    public void assignPlayer(Player player) {
+        TeamData team = teams.get(nextTeamIndex);
+        nextTeamIndex = (nextTeamIndex + 1) % teams.size();
+        team.addMember(player);
+        playerTeams.put(player.getUniqueId(), team); // Track assigned team
+    }
+    
+    
+    private void initPlayer(Player p) {
+        p.getInventory().clear();
+        if (p.hasMetadata("selected_kit")) {
+            String kitName = p.getMetadata("selected_kit").get(0).asString();
+            giveItemsForKit(p, kitName);
+        } else {
+            String defaultKit = "Bones";
+            giveItemsForKit(p, defaultKit);
+        }
+    }
+    public void endGame() {
+    	 removeAllCustomMobs();
+    	  if (juiceTask != null) {
+    	    juiceTask.cancel();
+    	    juiceTask = null;
+    	  }
+    	  if (blazeWaterTask != null) {
+    		    blazeWaterTask.cancel();
+    		    blazeWaterTask = null;
+    		}
+    }
+    
+    public void startGame() {
+        redGolems = 2;
+        blueGolems = 2;
+        spawnGolems(redTeam);
+        spawnGolems(blueTeam);
+    }
+      
+    boolean isTCRunning() {
+    	  String cur = game.getCurrentGame();
+    	  return game.isInGame()
+    	      && cur != null
+    	      && ChatColor.stripColor(cur).equalsIgnoreCase("Tower Clash");
+    	}
+    
+    @EventHandler
+    public void onEntityDamageByEntity1(EntityDamageByEntityEvent e) {
+    	if (!isTCRunning()) return;
+        if (e.getDamager() instanceof Player && e.getEntity() instanceof Player) {
+        e.setCancelled(true);
+        }
+    }
+
+
+    private void spawnGolems(TeamData team) {
+        if (team.equals(redTeam)) {
+            spawnSingleGolem(redGolemSpawn1, redTeam);
+            spawnSingleGolem(redGolemSpawn2, redTeam);
+        } else {
+            spawnSingleGolem(blueGolemSpawn1, blueTeam);
+            spawnSingleGolem(blueGolemSpawn2, blueTeam);
+        }
+    }
+    
+    private void tagMob(Entity mob, String teamName) {
+        mob.setMetadata("team", new FixedMetadataValue(plugin, teamName));
+    }
+    
+    private void spawnSingleGolem(Location loc, TeamData team) {
+        final Location home = loc.clone().add(0, 1, 0);
+        final Snowman golem = (Snowman) world.spawnEntity(home, EntityType.SNOWMAN);
+        golem.setMaxHealth(50);
+        golem.setHealth(50);
+        golem.setCustomNameVisible(true);
+        tagMob(golem, team.getName());
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!isTCRunning() || golem.isDead()) {
+                    cancel();
+                    return;
+                }
+                golem.teleport(home);
+                double hp = Math.round(golem.getHealth() * 10) / 10.0;
+                double max = Math.round(golem.getMaxHealth() * 10) / 10.0;
+                golem.setCustomName(ChatColor.GOLD + team.getName() + " Golem " + hp + " / " + max + "❤");
+            }
+        }.runTaskTimer(plugin, 0L, 10L);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onGolemDamage(EntityDamageByEntityEvent e) {
+        if (!isTCRunning()) return;
+        Entity dam = e.getDamager();
+        if (dam instanceof Projectile) {
+            Projectile pr = (Projectile) dam;
+            if (pr.getShooter() instanceof Entity) dam = (Entity) pr.getShooter();
+        }
+        if (!(e.getEntity() instanceof Snowman) ||
+            !(dam instanceof LivingEntity) ||
+            !e.getEntity().hasMetadata("team")) {
+            return;
+        }
+        String golemTeam = e.getEntity().getMetadata("team").get(0).asString();
+        String damTeam = ((LivingEntity) dam).getMetadata("team").stream().filter(md -> md.getOwningPlugin() == plugin).map(MetadataValue::asString).findFirst().orElse("");
+        if (golemTeam.equals(damTeam)) {
+            e.setCancelled(true);
+        }
+    }
+    
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent e) {
+        if (!isTCRunning()) return;
+
+        Entity ent = e.getEntity();
+        if (!(ent instanceof Snowman)) return;
+        Snowman dead = (Snowman)ent;
+
+        if (!dead.hasMetadata("team")) return;
+
+        String team = null;
+        for (MetadataValue md : dead.getMetadata("team")) {
+            if (md.getOwningPlugin() == plugin) {
+                team = md.asString();
+                break;
+            }
+        }
+        if (team == null) return;
+
+        if (team.equalsIgnoreCase(redTeam.getName())) {
+            redGolems--;
+        } else if (team.equalsIgnoreCase(blueTeam.getName())) {
+            blueGolems--;
+        } else {
+            return; // unknown team
+        }
+
+        checkEnd();
+    }
+    public void removeAllVillagersAndSlimes() {
+        for (World w : plugin.getServer().getWorlds()) {
+            for (Entity e: w.getEntities()) {
+                if (e instanceof Slime || e instanceof Villager) {
+                    e.remove();
+                }
+            }
+        }
+    }
+    
+    @EventHandler
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent e) {
+    	if (!isTCRunning()) return;
+        if (!(e.getDamager() instanceof Snowball)) return;
+        Snowball snowball = (Snowball) e.getDamager();
+        if (!(snowball.getShooter() instanceof Snowman)) return;
+        Entity target = e.getEntity();
+        if (target instanceof LivingEntity && !(target instanceof Player)) {
+            e.setDamage(10.0);
+        } else {
+            e.setCancelled(true);
+        }
+    }
+
+    private void checkEnd() {
+        if (redGolems <= 0) {
+            announceWinner(blueTeam);
+        } else if (blueGolems <= 0) {
+            announceWinner(redTeam);
+        }
+    }
+    
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent e) {
+    	if (!isTCRunning()) return;
+        Player p = e.getEntity();
+        e.setKeepInventory(true);
+        e.getDrops().clear();
+        new BukkitRunnable() {
+            public void run() {
+                p.spigot().respawn();
+            }
+        }.runTaskLater(plugin, 2L);
+    }
+    
+    
+    public static void openKitSelector2(Player player) {
+   	 Inventory gui = Bukkit.createInventory(null, 9, GUI_TITLE);
+        for (int i = 0; i < KIT_NAMES.length; i++) {
+            ItemStack icon = new ItemStack(Material.PAPER);
+            ItemMeta meta = icon.getItemMeta();
+            meta.setDisplayName(ChatColor.GOLD + KIT_NAMES[i]);
+            meta.setLore(Arrays.asList(ChatColor.GRAY + "Select: " + KIT_NAMES[i] + " kit!"));
+            icon.setItemMeta(meta);
+            gui.setItem(i, icon);
+        }
+        player.openInventory(gui);
+    }
+   @EventHandler
+   public void handleKitSelectorClick(InventoryClickEvent e) {
+       if (!(e.getWhoClicked() instanceof Player)) return;
+       Player p = (Player) e.getWhoClicked();
+       if (!e.getView().getTitle().equals(GUI_TITLE)) return;
+       e.setCancelled(true);
+       int slot = e.getRawSlot();
+       if (slot < 0 || slot >= KIT_NAMES.length) return;
+       String kitName = KIT_NAMES[slot];
+       CosList selectedCos = CosList.valueOf(kitName.toUpperCase());
+       List<CosList> cosmetics = new ArrayList<>(cmanager.getCosmetics(p));
+       if (!cosmetics.contains(selectedCos) && !isStaff(p)) {
+           p.closeInventory();
+           p.sendMessage(prefix + ChatColor.RED + "You haven't unlocked the " + ChatColor.GOLD + ChatColor.BOLD + kitName + ChatColor.RED + " kit!");
+           p.playSound(p.getLocation(), Sound.BAT_DEATH, 2, 2);
+           return;
+       }
+       p.setMetadata("selected_kit", new FixedMetadataValue(plugin, kitName));
+       p.sendMessage(prefix + ChatColor.GRAY + "Selected " + ChatColor.BOLD + kitName + ChatColor.GRAY + " Kit");
+       TCKits.put(p.getUniqueId(), kitName);
+       p.playSound(p.getLocation(), Sound.NOTE_PLING, 2, 2);
+       p.closeInventory();
+   }
+   
+   private boolean isStaff(Player player) {
+       Rank rank = rankManager.getRank(player);
+       return rank == Rank.OWNER || rank == Rank.ADMIN || rank == Rank.MOD || rank == Rank.BUILDER;
+   }
+   
+
+   private void giveKitIfAny(Player p) {
+       if (p.hasMetadata("selected_kit")) {
+           String kit = p.getMetadata("selected_kit").get(0).asString();
+           giveItemsForKit(p, kit);
+       } else {
+           String defaultKit = "Bones";
+           giveItemsForKit(p, defaultKit);
+       }
+   }
+    public static void giveItemsForKit(Player player, String kitName) {
+        player.getInventory().clear();
+        switch (kitName) {
+            case "Bones": {
+                ItemStack banner = new ItemStack(Material.INK_SACK);
+                ItemMeta bm = banner.getItemMeta();
+                bm.setDisplayName(ChatColor.GOLD + "Witch Spawn - 4");
+                banner.setItemMeta(bm);
+                player.getInventory().setItem(0, banner);
+                ItemStack skelSword = new ItemStack(Material.IRON_INGOT);
+                ItemMeta sm = skelSword.getItemMeta();
+                sm.setDisplayName(ChatColor.GOLD + "Skeleton Bombers - 2");
+                skelSword.setItemMeta(sm);
+                player.getInventory().setItem(1, skelSword);
+                ItemStack bottle = new ItemStack(Material.GLASS_BOTTLE);
+                ItemMeta bm2 = bottle.getItemMeta();
+                bm2.setDisplayName(ChatColor.GOLD + "Bat Bottle - 2");
+                bottle.setItemMeta(bm2);
+                player.getInventory().setItem(2, bottle);
+                ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short)1);
+                ItemMeta sm3 = skull.getItemMeta();
+                sm3.setDisplayName(ChatColor.GOLD + "Dark Skeleton Spawn - 3");
+                skull.setItemMeta(sm3);
+                player.getInventory().setItem(3, skull);
+                break;
+            }
+            case "Zombies": {
+                ItemStack flesh = new ItemStack(Material.ROTTEN_FLESH);
+                ItemMeta fm = flesh.getItemMeta();
+                fm.setDisplayName(ChatColor.GOLD + "Shovel Zombie - 3");
+                flesh.setItemMeta(fm);
+                player.getInventory().setItem(0, flesh);
+                ItemStack pigmanEgg = new ItemStack(Material.GOLD_NUGGET, 1);
+                ItemMeta pm = pigmanEgg.getItemMeta();
+                pm.setDisplayName(ChatColor.GOLD + "Pigman Spawner - 3");
+                pigmanEgg.setItemMeta(pm);
+                player.getInventory().setItem(1, pigmanEgg);
+                ItemStack bow = new ItemStack(Material.BOW);
+                ItemMeta bm4 = bow.getItemMeta();
+                bm4.setDisplayName(ChatColor.GOLD + "Zombie Archer - 2");
+                bow.setItemMeta(bm4);
+                player.getInventory().setItem(2, bow);
+                ItemStack creeperEgg = new ItemStack(Material.SULPHUR, 1);
+                ItemMeta cm = creeperEgg.getItemMeta();
+                cm.setDisplayName(ChatColor.GOLD + "Charged Creeper - 4");
+                creeperEgg.setItemMeta(cm);
+                player.getInventory().setItem(3, creeperEgg);
+                break;
+            }
+            case "Civilian": {
+                ItemStack sheepEgg = new ItemStack(Material.MUTTON, 1);
+                ItemMeta sm4 = sheepEgg.getItemMeta();
+                sm4.setDisplayName(ChatColor.GOLD + "Sheep Launcher - 3");
+                sheepEgg.setItemMeta(sm4);
+                player.getInventory().setItem(0, sheepEgg);
+                ItemStack horseEgg = new ItemStack(Material.LEATHER, 1);
+                ItemMeta hm = horseEgg.getItemMeta();
+                hm.setDisplayName(ChatColor.GOLD + "War Horse - 4");
+                horseEgg.setItemMeta(hm);
+                player.getInventory().setItem(1, horseEgg);
+                ItemStack enderEgg = new ItemStack(Material.CLAY_BALL, 1);
+                ItemMeta em = enderEgg.getItemMeta();
+                em.setDisplayName(ChatColor.GOLD + "Ender Planter - 5");
+                enderEgg.setItemMeta(em);
+                player.getInventory().setItem(2, enderEgg);
+                ItemStack pigEgg = new ItemStack(Material.PORK, 1);
+                ItemMeta pm2 = pigEgg.getItemMeta();
+                pm2.setDisplayName(ChatColor.GOLD + "Pig Rider - 5");
+                pigEgg.setItemMeta(pm2);
+                player.getInventory().setItem(3, pigEgg);
+                break;
+            }
+            case "Flame": {
+                ItemStack blazeEgg = new ItemStack(Material.GHAST_TEAR, 1);
+                ItemMeta bm5 = blazeEgg.getItemMeta();
+                bm5.setDisplayName(ChatColor.GOLD + "Wolf Rider - 4");
+                blazeEgg.setItemMeta(bm5);
+                player.getInventory().setItem(0, blazeEgg);
+                ItemStack spiderEgg = new ItemStack(Material.STICK, 1);
+                ItemMeta sm5 = spiderEgg.getItemMeta();
+                sm5.setDisplayName(ChatColor.GOLD + "Weakness Spider - 3");
+                spiderEgg.setItemMeta(sm5);
+                player.getInventory().setItem(1, spiderEgg);
+                ItemStack magmaEgg = new ItemStack(Material.MAGMA_CREAM, 1);
+                ItemMeta mm = magmaEgg.getItemMeta();
+                mm.setDisplayName(ChatColor.GOLD + "Magma Cube - 2");
+                magmaEgg.setItemMeta(mm);
+                player.getInventory().setItem(2, magmaEgg);
+                ItemStack slimeEgg = new ItemStack(Material.SLIME_BALL, 1);
+                ItemMeta sm6 = slimeEgg.getItemMeta();
+                sm6.setDisplayName(ChatColor.GOLD + "Snare Slime - 3");
+                slimeEgg.setItemMeta(sm6);
+                player.getInventory().setItem(3, slimeEgg);
+                break;
+            }
+            default:
+            	break;
+        }
+        player.getInventory().setArmorContents(new ItemStack[4]);
+    }
+    
+    @EventHandler
+    public void onItemDrop(PlayerDropItemEvent event) {
+    	if (!isTCRunning()) return;
+            event.setCancelled(true);
+            event.getPlayer().playSound(event.getPlayer().getLocation(), Sound.CAT_MEOW, 2F, 2F);
+        }
+   
+
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent e) {
+        if (!isTCRunning()) return;
+
+        Player p = e.getPlayer();
+        Location redRespawn  = new Location(world, 129,  86, -50);
+        Location blueRespawn = new Location(world, 190,  86, -52);
+
+        if (redTeam.hasMember(p)) {
+            e.setRespawnLocation(redRespawn);
+        } else if (blueTeam.hasMember(p)) {
+            e.setRespawnLocation(blueRespawn);
+        }
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        giveKitIfAny(p);
+        }, 1L);
+    }
+    private void removeAllGolems() {
+        Bukkit.getWorlds().forEach(world -> {
+            world.getEntitiesByClass(Snowman.class).stream().filter(s -> {
+                     String name = s.getCustomName();
+                     return name != null && name.endsWith("Golem");
+                 })
+                 .forEach(Entity::remove);
+        });
+    }
+
+    private void clearAllTeams() {
+        redTeam.clearMembers();
+        blueTeam.clearMembers();
+}
+    }
+    
+
+    private void announceWinner(TeamData winner) {
+    	removeAllGolems();
+    	endGame();
+    	stopAntiFenceWaterTask();
+    	Bukkit.broadcastMessage(prefix + ChatColor.GOLD + winner.getName() + " has won!");
+    	Location victoryLocation = new Location(Bukkit.getWorld("Victory"), 4.0, 100.0, 2.0);
+        Location defeatLocation  = new Location(Bukkit.getWorld("Victory"), 3.0,  99.0, -10.0);
+        Location lobby = new Location(Bukkit.getWorld("world"), 242, 101, 1344);
+        for (Player p: Bukkit.getOnlinePlayers()) {
+        	p.setGameMode(GameMode.ADVENTURE);
+        	p.setFlying(false);
+        	p.setAllowFlight(false);
+        	p.getInventory().setHelmet(new ItemStack(Material.AIR));
+            p.getInventory().setChestplate(new ItemStack(Material.AIR));
+            p.getInventory().setLeggings(new ItemStack(Material.AIR));
+            p.getInventory().setBoots(new ItemStack(Material.AIR));
+            p.removePotionEffect(PotionEffectType.SPEED);
+            boardm.setLobbyBoard(p);
+            boardm.startAnimator(p);
+        	 if (winner.hasMember(p)) {
+                p.teleport(victoryLocation);
+                p.getInventory().clear();
+                Coins.addCoins(p, 30);
+                XpHandler.addXp(p, 50);
+                boardm.updateLobbyCoins(p);
+                p.sendMessage(prefix + ChatColor.GRAY + "Won: +30 coins");
+                p.sendMessage(prefix + ChatColor.GRAY + "Won +50 XP");
+                XpHandler.addXp(p, 30);
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                p.teleport(defeatLocation); });
+                XpHandler.addXp(p, 10);
+                p.sendMessage(prefix + ChatColor.GRAY + "Participation: +10 XP");
+                p.getInventory().clear();
+                ItemStack eggs = new ItemStack(Material.EGG, 16);
+                ItemMeta meta = eggs.getItemMeta();
+                meta.setDisplayName(ChatColor.YELLOW + "Loser Eggs");
+                meta.setLore(Collections.singletonList(ChatColor.GRAY + "Throw at winner!"));
+                eggs.setItemMeta(meta);
+                p.getInventory().addItem(eggs);
+            }
+        }
+  new BukkitRunnable() {
+            int count = 20;
+            @Override public void run() {
+                if (count-- <= 0) {
+                    cancel();
+                    Bukkit.getOnlinePlayers().forEach(p -> {
+                        p.teleport(lobby);
+                        giveDefaultItems(p);
+                        Levels.ensurePlayerExists(p);
+                        level.updateLevelFromXp(p);
+                        if (game.isHost(p) || game.isCohost(p)) {
+                            ItemStack melon = new ItemStack(Material.MELON);
+                            ItemMeta meta = melon.getItemMeta();
+                            meta.setDisplayName(ChatColor.LIGHT_PURPLE + "Game Menu");
+                            melon.setItemMeta(meta);
+                            p.getInventory().setItem(8, melon);
+                            clearAllTeams();
+                        }
+                    });
+                    game.stopGame();
+                }
+                playEffectsAndFireworks(winner);
+            }
+        }.runTaskTimer(plugin, 0L, 10L);
+        
+    }
+    private void playEffectsAndFireworks(TeamData team) {
+        for (UUID uuid: team.getMemberUUIDs()) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) {
+                Location loc = player.getLocation();
+                player.playSound(loc, Sound.CHICKEN_EGG_POP, 4.0F, 5.0F);
+                player.playEffect(loc, Effect.FIREWORKS_SPARK, null);
+                spawnFirework(loc, Color.YELLOW, Color.RED);
+                spawnFirework(loc, Color.LIME, Color.BLUE);
+            }
+        }
+    }
+    
+    private void removeAllCustomMobs() {
+        Bukkit.getWorlds().forEach(world -> {
+            world.getEntities().stream().filter(e -> e.hasMetadata("team") || e.hasMetadata("goletarget")).forEach(Entity::remove);
+        });
+    }
+    
+    private void spawnFirework(Location loc, Color base, Color fade) {
+        Firework fw = (Firework)loc.getWorld().spawnEntity(loc, EntityType.FIREWORK);
+        FireworkMeta m = fw.getFireworkMeta();
+        m.addEffect(FireworkEffect.builder().withColor(base).withFade(fade).flicker(true).trail(true).with(FireworkEffect.Type.BALL_LARGE).build());
+        m.setPower(2);
+        fw.setFireworkMeta(m);
+    }
+    
+    
+    private void giveDefaultItems(Player player) {
+        PlayerInventory inventory = player.getInventory();
+        ItemStack gameSelector = new ItemStack(Material.COMPASS);
+        ItemMeta selectorMeta = gameSelector.getItemMeta();
+        selectorMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Game Selector");
+        selectorMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Choose a minigame" }));
+        gameSelector.setItemMeta(selectorMeta);
+        inventory.setItem(1, gameSelector);
+        ItemStack cosmetics = new ItemStack(Material.CHEST);
+        ItemMeta cosmeticsMeta = cosmetics.getItemMeta();
+        cosmeticsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Cosmetics");
+        cosmeticsMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Have lots of fun!" }));
+        cosmetics.setItemMeta(cosmeticsMeta);
+        inventory.setItem(4, cosmetics);
+        ItemStack prefs = new ItemStack(Material.REDSTONE_COMPARATOR);
+        ItemMeta prefsMeta = prefs.getItemMeta();
+        prefsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Prefs");
+        prefsMeta.setLore(Arrays.asList(new String[] { ChatColor.RED + "Settings menu" }));
+        prefs.setItemMeta(prefsMeta);
+        inventory.setItem(7, prefs);
+      }
+    @EventHandler
+    public void onPluginDisable(PluginDisableEvent e) {
+    	if (!isTCRunning()) return;
+    	endGame();
+        if (e.getPlugin().equals(plugin)) {
+        	clearAllTeams();
+        	removeAllGolems();
+          stopAntiFenceWaterTask();
+        	game.stopGame();
+        }
+    }
+    
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent e) {
+        Player quitter = e.getPlayer();
+        if (!isTCRunning()) return;
+        long redRemaining = redTeam.getPlayers().stream().filter(Player::isOnline).filter(p -> !p.equals(quitter)).count();
+        long blueRemaining = blueTeam.getPlayers().stream().filter(Player::isOnline).filter(p -> !p.equals(quitter)).count();
+        if (redRemaining == 0 && blueRemaining > 0) {
+            announceWinner(blueTeam);
+        } else if (blueRemaining == 0 && redRemaining > 0) {
+            announceWinner(redTeam);
+        } else if (redRemaining == 0 && blueRemaining == 0) {
+        	clearAllTeams();
+        	removeAllGolems();
+        	game.stopGame();
+        	endGame();
+        }
+    }
+}
+
