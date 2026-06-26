@@ -1,0 +1,142 @@
+### Ranks Method Class ###
+
+public class RankManager {
+  private final Connection connection;
+  
+  private final Main plugin;
+  
+  public RankManager(Connection connection, Main plugin) {
+    this.connection = connection;
+    this.plugin = plugin;
+  }
+  
+  public Rank getRank(Player player) {
+	    try (PreparedStatement stmt = connection.prepareStatement("SELECT rank FROM players WHERE player_uuid = ?")) {
+	        stmt.setString(1, player.getUniqueId().toString());
+	        try (ResultSet rs = stmt.executeQuery()) {
+	            if (rs.next()) {
+	                String rankName = rs.getString("rank");
+	                return Rank.valueOf(rankName.toUpperCase());
+	            }
+	        }
+	    } catch (SQLException | IllegalArgumentException e) {
+	        e.printStackTrace();
+	    }
+	    return Rank.MEMBER;
+	}
+	  
+  public void setRank(Player player, String rankName, Runnable callback) {
+	    Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> {
+	        try (PreparedStatement stmt = connection.prepareStatement(
+	                "INSERT INTO players (player_uuid, rank) VALUES (?, ?) ON DUPLICATE KEY UPDATE rank = ?")) {
+	            stmt.setString(1, player.getUniqueId().toString());
+	            stmt.setString(2, rankName);
+	            stmt.setString(3, rankName);
+	            stmt.executeUpdate();
+	        } catch (SQLException e) {
+	            e.printStackTrace();
+	            return;
+	        }
+	        if (callback != null) {
+	            Bukkit.getScheduler().runTask(this.plugin, callback);
+	        }
+	    });
+	}
+
+	  
+  
+	  public void setNameTag(Player player) {
+	    player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+	    byte b;
+	    int i;
+	    Rank[] arrayOfRank;
+	    for (i = (arrayOfRank = Rank.values()).length, b = 0; b < i; ) {
+	      Rank rank = arrayOfRank[b];
+	      Team team = player.getScoreboard().registerNewTeam(rank.name());
+	      team.setPrefix(String.valueOf(rank.getPrefix()) + " " + ChatColor.GRAY);
+	      b++;
+	    } 
+	    for (Player target : Bukkit.getOnlinePlayers()) {
+	      if (!player.equals(target)) {
+	        Rank targetRank = getRank(target);
+	        Team team = player.getScoreboard().getTeam(targetRank.name());
+	        if (team != null && !team.hasEntry(target.getName()))
+	          team.addEntry(target.getName()); 
+	      } 
+	    } 
+	    Rank playerRank = getRank(player);
+	    for (Player target : Bukkit.getOnlinePlayers()) {
+	      if (!target.equals(player)) {
+	        Scoreboard scoreboard = target.getScoreboard();
+	        if (scoreboard != null) {
+	          Team team = scoreboard.getTeam(playerRank.name());
+	          if (team == null) {
+	            team = scoreboard.registerNewTeam(playerRank.name());
+	            team.setPrefix(String.valueOf(playerRank.getPrefix()) + " " + ChatColor.GRAY);
+	          } 
+	          if (!team.hasEntry(player.getName()))
+	            team.addEntry(player.getName()); 
+	        } 
+	      } 
+	    } 
+	  }
+	  
+	  public void applyNameTags(Player player) {
+		    Scoreboard board = player.getScoreboard();
+
+		    if (board == null || board == Bukkit.getScoreboardManager().getMainScoreboard()) {
+		        board = Bukkit.getScoreboardManager().getNewScoreboard();
+		        player.setScoreboard(board);
+		    }
+
+		    for (Rank rank : Rank.values()) {
+		        Team team = board.getTeam(rank.name());
+
+		        if (team == null) {
+		            team = board.registerNewTeam(rank.name());
+		        }
+
+		        if (rank == Rank.MEMBER) {
+		            team.setPrefix(ChatColor.GRAY.toString());
+		            team.setSuffix("");
+		        } else {
+		            team.setPrefix(rank.getPrefix() + " " + ChatColor.GRAY);
+		            team.setSuffix("");
+		        }
+		    }
+		    for (Player target : Bukkit.getOnlinePlayers()) {
+		        Rank targetRank = getRank(target);
+		        for (Team t : board.getTeams()) {
+		            if (t.hasEntry(target.getName())) {
+		                t.removeEntry(target.getName());
+		            }
+		        }
+		        Team team = board.getTeam(targetRank.name());
+		        if (team != null) {
+		            team.addEntry(target.getName());
+		        }
+		    }
+	  }
+	  public void newTag(Player player) {
+	    Rank rank = getRank(player);
+	    for (Player target : Bukkit.getOnlinePlayers())
+	      target.getScoreboard().getTeam(rank.name()).addEntry(player.getName()); 
+	  }
+	  
+	  public void removeTag(Player player) {
+	    for (Player target : Bukkit.getOnlinePlayers()) {
+	      Scoreboard scoreboard = target.getScoreboard();
+	      if (scoreboard == null) {
+	        Bukkit.getLogger().warning("No scoreboard found for " + target.getName());
+	        continue;
+	      } 
+	      Team team = scoreboard.getEntryTeam(player.getName());
+	      if (team == null) {
+	        Bukkit.getLogger().warning("No team found for " + player.getName() + " on " + target.getName() + "'s scoreboard.");
+	        continue;
+	      } 
+	      team.removeEntry(player.getName());
+	      Bukkit.getLogger().info("Removed " + player.getName() + " from team: " + team.getName());
+	    } 
+	  }
+	}
