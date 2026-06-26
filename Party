@@ -1,0 +1,234 @@
+### Sample Party System Overview ###
+
+public class PartyCommand extends Command implements TabExecutor {
+
+    private final PartyManager partyManager;
+    
+    public String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Party] ";
+
+    public PartyCommand(PartyManager partyManager) {
+        super("party", null, "p");
+        this.partyManager = partyManager;
+    }
+    
+    private void sendSound(ProxiedPlayer player, String soundType) {
+        try {
+            ByteArrayOutputStream b = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(b);
+            out.writeUTF(soundType);
+            player.getServer().sendData("polar8:main", b.toByteArray());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    @Override
+    public Iterable<String> onTabComplete(CommandSender sender, String[] args) {
+        List<String> completions = new ArrayList<>();
+        if (args.length == 1) {
+            List<String> subcommands = Arrays.asList("invite", "accept", "leave", "list", "warp");
+
+            for (String sub: subcommands) {
+                if (sub.toLowerCase().startsWith(args[0].toLowerCase())) {
+                    completions.add(sub);
+                }
+            }
+
+            return completions;
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("invite")) {
+            for (ProxiedPlayer p : ProxyServer.getInstance().getPlayers()) {
+                if (p.getName().toLowerCase().startsWith(args[1].toLowerCase())) {
+                    completions.add(p.getName());
+                }
+            }
+
+            return completions;
+        }
+
+        return completions;
+    }
+    
+	@Override
+    public void execute(CommandSender sender, String[] args) {
+        if (!(sender instanceof ProxiedPlayer)) {
+            send(sender, ChatColor.RED + "Only players can use this.");
+            return;
+        }
+
+        ProxiedPlayer player = (ProxiedPlayer) sender;
+
+        if (args.length == 0) {
+        	  send(player, prefix);
+            send(player, ChatColor.GOLD + "/party invite <player>");
+            send(player, ChatColor.GOLD + "/party accept");
+            send(player, ChatColor.GOLD + "/party leave");
+            send(player, ChatColor.GOLD + "/party list");
+            send(player, ChatColor.GOLD + "/party chat <msg>");
+            send(player, ChatColor.GOLD + "/party warp");
+            send(player, prefix);
+            return;
+        }
+        
+        if (args[0].equalsIgnoreCase("chat")) {
+            if (!partyManager.hasParty(player)) {
+                send(player, ChatColor.RED + "You are not in a party.");
+                return;
+            }
+
+            if (args.length < 2) {
+                send(player, prefix + ChatColor.RED + "Usage: /party chat <message>");
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 1; i < args.length; i++) {
+                sb.append(args[i]).append(" ");
+            }
+
+            String msg = sb.toString().trim();
+
+            for (UUID id: partyManager.getMembers(player)) {
+                ProxiedPlayer member = Main.getInstance().getProxy().getPlayer(id);
+                if (member != null) {
+                    send(member, ChatColor.LIGHT_PURPLE + "[Party] " + ChatColor.AQUA + player.getName() + ChatColor.GOLD + "> " + ChatColor.GRAY + msg);
+                }
+            }
+
+            return;
+        }
+
+        if (args[0].equalsIgnoreCase("invite")) {
+            if (args.length < 2) {
+                send(player, prefix + ChatColor.RED + "Usage: /party invite <player>");
+                return;
+            }
+
+            ProxiedPlayer target = Main.getInstance().getProxy().getPlayer(args[1]);
+
+            if (target == null) {
+                send(player, prefix + ChatColor.RED + "That player is not online.");
+                return;
+            }
+
+            if (!partyManager.hasParty(player)) {
+                partyManager.createParty(player);
+            }
+
+            if (!partyManager.isLeader(player)) {
+                send(player, prefix + ChatColor.RED + "Only the party leader can invite players.");
+                return;
+            }
+
+            partyManager.invite(player, target);
+
+            send(player, prefix + ChatColor.GREEN + "You invited " + ChatColor.BOLD + target.getName() + ChatColor.GREEN + " to your party.");
+            TextComponent inviteMsg = new TextComponent(prefix + ChatColor.GREEN + "" + ChatColor.BOLD + player.getName() + ChatColor.GREEN + " invited you to a party. ");
+
+            TextComponent acceptButton = new TextComponent(ChatColor.DARK_GREEN + "" + ChatColor.BOLD + "[ACCEPT]");
+
+            acceptButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/party accept"));
+
+            acceptButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(ChatColor.GREEN + "Click to join the party").create()));
+
+            inviteMsg.addExtra(acceptButton);
+
+            target.sendMessage(inviteMsg);
+            sendSound(target, "PARTY_SOUND");
+            sendSound(player, "PARTY_SOUND");
+            return;
+        }
+        
+        if (args[0].equalsIgnoreCase("warp")) {
+            if (!partyManager.hasParty(player)) {
+                send(player, prefix + ChatColor.RED + "You are not in a party.");
+                return;
+            }
+
+            if (!partyManager.isLeader(player)) {
+                send(player, prefix + ChatColor.RED + "Only the party leader can warp members.");
+                return;
+            }
+
+            if (player.getServer() == null) {
+                send(player, prefix + ChatColor.RED + "Could not find your current server.");
+                return;
+            }
+
+            int warped = 0;
+
+            for (UUID id: partyManager.getMembers(player)) {
+                ProxiedPlayer member = Main.getInstance().getProxy().getPlayer(id);
+
+                if (member == null) continue;
+                if (member.equals(player)) continue;
+
+                if (member.getServer() != null &&
+                member.getServer().getInfo().getName().equalsIgnoreCase(player.getServer().getInfo().getName())) {
+                    continue;
+                }
+
+                member.connect(player.getServer().getInfo());
+                send(member, prefix + ChatColor.GREEN + "You were warped to " + ChatColor.AQUA + player.getName() + ChatColor.GREEN + ".");
+                warped++;
+            }
+
+            send(player, prefix + ChatColor.GREEN + "Warped " + ChatColor.AQUA + warped + ChatColor.GREEN + " party member(s) to your server.");
+            sendSound(player, "PARTY_SOUND");
+            return;
+        }
+
+        if (args[0].equalsIgnoreCase("accept")) {
+            if (!partyManager.hasInvite(player)) {
+                send(player, prefix + ChatColor.RED + "You have no party invite.");
+                return;
+            }
+
+            UUID leaderId = partyManager.getInviteLeader(player);
+            ProxiedPlayer leader = Main.getInstance().getProxy().getPlayer(leaderId);
+
+            partyManager.acceptInvite(player);
+
+            send(player, prefix + ChatColor.GREEN + "You joined the party.");
+            sendSound(player, "PARTY_SOUND");
+            if (leader != null) {
+                send(leader, prefix + ChatColor.AQUA + player.getName() + ChatColor.GREEN + " joined your party.");
+                sendSound(leader, "PARTY_SOUND");
+            }
+            return;
+        }
+
+        if (args[0].equalsIgnoreCase("leave")) {
+            if (!partyManager.hasParty(player)) {
+                send(player, prefix + ChatColor.RED + "You are not in a party.");
+                return;
+            }
+
+            partyManager.leave(player);
+            send(player, prefix + ChatColor.RED + "You left the party.");
+            return;
+        }
+
+        if (args[0].equalsIgnoreCase("list")) {
+            if (!partyManager.hasParty(player)) {
+                send(player, prefix + ChatColor.RED + "You are not in a party.");
+                return;
+            }
+
+            send(player, ChatColor.GOLD + "Party Members:");
+
+            for (UUID id: partyManager.getMembers(player)) {
+                ProxiedPlayer member = Main.getInstance().getProxy().getPlayer(id);
+
+                if (member != null) {
+                    send(player, prefix + ChatColor.GRAY + "- " + ChatColor.AQUA + member.getName());
+                }
+            }
+        }
+    }
+
+    private void send(CommandSender sender, String message) {
+        sender.sendMessage(new TextComponent(message));
+    }
+}
