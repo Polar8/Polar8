@@ -1,0 +1,56 @@
+public class TeleportBow implements Listener {
+  public String prefix = ChatColor.LIGHT_PURPLE + ChatColor.BOLD.toString() + "[Gadgets] ";
+  public TeleportBow(ActionBar bar) {
+  }
+
+  
+  @EventHandler
+  public void onArrowLand(ProjectileHitEvent e) {
+      if (!(e.getEntity().getShooter() instanceof Player)) return;
+      Player p = (Player) e.getEntity().getShooter();
+      ItemStack mainHand = p.getInventory().getItemInHand();
+      if (mainHand == null || !mainHand.hasItemMeta()) return;
+      ItemMeta meta = mainHand.getItemMeta();
+      if (!meta.hasDisplayName()) return;
+      String bowName = ChatColor.stripColor(meta.getDisplayName());
+      if (!(bowName.equalsIgnoreCase("Teleport Bow") || bowName.equalsIgnoreCase("Evolved Teleport Bow"))) return;
+      Location location = e.getEntity().getLocation();
+      p.teleport(location);
+      p.damage(0.0D);
+      ActionBar actionBar = new ActionBar(prefix + ChatColor.GRAY + "Here we go!");
+      actionBar.sendToPlayer(p);
+      p.playSound(p.getLocation(), Sound.ENDERMAN_TELEPORT, 1.0F, 1.0F);
+      ItemStack arrow = new ItemStack(Material.ARROW);
+      ItemMeta arrowMeta = arrow.getItemMeta();
+      arrowMeta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "Teleport Arrow");
+      arrow.setItemMeta(arrowMeta);
+      p.getInventory().setItem(35, arrow);
+  }
+  
+  @EventHandler
+  public void OnBowUseEvent(PlayerItemDamageEvent e) {
+    if (e.getItem().getType() != Material.BOW);
+    e.setCancelled(true);
+  }
+  
+  private static final Set<String> ALLOWED_ARROW_NAMES = new HashSet<>(Arrays.asList(
+		    "Teleport Arrow"));
+
+		@EventHandler
+		public void onArrowPickup(PlayerPickupItemEvent event) {
+		    ItemStack item = event.getItem().getItemStack();
+
+		    if (item == null || item.getType() != Material.ARROW) return;
+		    if (!item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) {
+		        event.getItem().remove();
+		        event.setCancelled(true);
+		        return;
+		    }
+
+		    String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName());
+		    if (!ALLOWED_ARROW_NAMES.contains(displayName)) {
+		        event.getItem().remove();
+		        event.setCancelled(true);
+		    }
+		}
+}
