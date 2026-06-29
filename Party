@@ -178,6 +178,19 @@ public class PartyCommand extends Command implements TabExecutor {
             sendSound(player, "PARTY_SOUND");
             return;
         }
+        if (args[0].equalsIgnoreCase("disband")) {
+            if (!partyManager.hasParty(player)) {
+                send(player, prefix + ChatColor.RED + "You are not in a party.");
+                return;
+            }
+            if (!partyManager.isLeader(player)) {
+                send(player, prefix + ChatColor.RED + "Only the party leader can disband");
+                return;
+            }
+            partyManager.disband(player);
+            send(player, prefix + ChatColor.RED + "You disbanded the party.");
+            return;
+        }
 
         if (args[0].equalsIgnoreCase("accept")) {
             if (!partyManager.hasInvite(player)) {
