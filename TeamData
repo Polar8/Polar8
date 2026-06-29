@@ -17,7 +17,6 @@ public class TeamData {
     public void addMember(Player player) {
         members.add(player.getUniqueId());
         player.teleport(playerSpawn);
-        giveTeamPaper(player);
         equipTeamArmor(player);
     }
     
@@ -78,15 +77,6 @@ public class TeamData {
 
 	public boolean hasMember(Player player) {
         return members.contains(player.getUniqueId());
-    }
-
-    private void giveTeamPaper(Player player) {
-        ItemStack paper = new ItemStack(Material.PAPER, 1);
-        ItemMeta meta = paper.getItemMeta();
-        meta.setDisplayName(name + " Team");
-        paper.setItemMeta(meta);
-        player.getInventory().clear();
-        player.getInventory().setItem(9, paper);
     }
 
     public void removeDog() {
