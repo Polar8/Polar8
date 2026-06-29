@@ -292,7 +292,6 @@ public class TowerClash implements Listener {
         Location blueSpawn = new Location(world, 178, 87, -51);
         for (Player p: Bukkit.getOnlinePlayers()) {
         	clearArmorAndEffects(p);
-        	p.performCommand("map");
             if (!playerTeams.containsKey(p.getUniqueId())) {
                 assignPlayer(p);
             }
@@ -311,6 +310,7 @@ public class TowerClash implements Listener {
                 p.getInventory().clear();
                 p.teleport(spawn);
                 initPlayer(p);
+        	    p.performCommand("map");
                 boardm.setTowerClashBoard(p, kit, formatTime(towerClashTimeLeft), getJuiceMultiplierText());
 
               new BukkitRunnable() {
@@ -558,6 +558,13 @@ public class TowerClash implements Listener {
                 && e.getEntity() instanceof Player) {
             e.setCancelled(true);
         }
+    }
+
+ @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent e) {
+    	if (!isTCRunning()) return;
+        Player p = e.getPlayer();
+        game.setSpectating(p, true);
     }
     
     private void applyOvertimeZombieAI(final Zombie zombie) {
