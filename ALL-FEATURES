@@ -2,6 +2,11 @@
 
 As stated earlier, I am only providing sample files. However, all features stated in this file are current implemented, working features. 
 
+Player -> Join -> PlayerJoinEvents -> PlayerQuitEvents
+Player -> Command -> PartyManager -> Party Data
+Player -> PlayerInteractEvent -> Cosmetic Menu -> Nightbox
+Player -> Chat Hover Over Event -> Get Host to choose minigame -> Play minigame
+
 The full plugin itself contains:
 
 Main:
